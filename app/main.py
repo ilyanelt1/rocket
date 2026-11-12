@@ -17,6 +17,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from .audit import record_audit_event
 from .auth import get_current_user, require_roles
 from .db import Base, engine, get_db
+from .migrations import apply_schema_migrations
 from .models import AuditLog, Operation, Product, StockBalance, User, Warehouse
 from .services import (
     StockError,
@@ -34,6 +35,7 @@ from .services import (
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     Base.metadata.create_all(bind=engine)
+    apply_schema_migrations(engine)
     username = os.getenv("ADMIN_USERNAME")
     password = os.getenv("ADMIN_PASSWORD")
     if username and password:
@@ -163,29 +165,48 @@ def dashboard(
         .join(Warehouse, Warehouse.id == StockBalance.warehouse_id)
         .where(Warehouse.deleted_at.is_(None))
     ).one()
+    active_stock_by_product = (
+        select(
+            StockBalance.product_id.label("product_id"),
+            func.sum(
+                StockBalance.physical_qty - StockBalance.reserved_qty
+            ).label("available_qty"),
+        )
+        .join(Warehouse, Warehouse.id == StockBalance.warehouse_id)
+        .where(Warehouse.deleted_at.is_(None))
+        .group_by(StockBalance.product_id)
+        .subquery()
+    )
+    available_qty = func.coalesce(active_stock_by_product.c.available_qty, 0)
     out_of_stock_products = db.execute(
         select(
             Product.id,
             Product.sku,
             Product.name,
-            func.coalesce(
-                func.sum(StockBalance.physical_qty - StockBalance.reserved_qty), 0
-            ).label("available_qty"),
+            available_qty.label("available_qty"),
         )
-        .outerjoin(StockBalance, StockBalance.product_id == Product.id)
-        .outerjoin(Warehouse, Warehouse.id == StockBalance.warehouse_id)
+        .outerjoin(
+            active_stock_by_product,
+            active_stock_by_product.c.product_id == Product.id,
+        )
+        .where(available_qty <= 0)
+        .order_by(Product.sku)
+    ).all()
+    low_stock_products = db.execute(
+        select(
+            Product.id,
+            Product.sku,
+            Product.name,
+            Product.minimum_stock,
+            available_qty.label("available_qty"),
+        )
+        .outerjoin(
+            active_stock_by_product,
+            active_stock_by_product.c.product_id == Product.id,
+        )
         .where(
-            or_(
-                Warehouse.deleted_at.is_(None),
-                StockBalance.id.is_(None),
-            )
-        )
-        .group_by(Product.id)
-        .having(
-            func.coalesce(
-                func.sum(StockBalance.physical_qty - StockBalance.reserved_qty), 0
-            )
-            <= 0
+            Product.minimum_stock > 0,
+            available_qty <= Product.minimum_stock,
         )
         .order_by(Product.sku)
     ).all()
@@ -234,8 +255,10 @@ def dashboard(
                 "reserved_qty": stock_totals[1],
                 "available_qty": stock_totals[0] - stock_totals[1],
                 "out_of_stock_count": len(out_of_stock_products),
+                "low_stock_count": len(low_stock_products),
             },
             "out_of_stock_products": out_of_stock_products,
+            "low_stock_products": low_stock_products,
             "operations": operations,
             "transit": transit,
             "names": names,
@@ -544,6 +567,34 @@ def export_operation_history(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@app.post("/products/{product_id}/minimum-stock")
+def update_product_minimum_stock(
+    product_id: int,
+    minimum_stock: int = Form(..., ge=0),
+    user: User = Depends(require_roles("admin", "warehouse_manager")),
+    db: Session = Depends(get_db),
+):
+    product = db.get(Product, product_id)
+    if product is None:
+        raise HTTPException(404, "Товар не найден")
+    previous_minimum_stock = product.minimum_stock
+    product.minimum_stock = minimum_stock
+    record_audit_event(
+        db,
+        user.id,
+        "product.minimum_stock.update",
+        "product",
+        product.id,
+        {
+            "sku": product.sku,
+            "previous_minimum_stock": previous_minimum_stock,
+            "minimum_stock": minimum_stock,
+        },
+    )
+    db.commit()
+    return RedirectResponse("/", status_code=303)
 
 
 @app.post("/warehouses")
