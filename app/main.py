@@ -242,6 +242,7 @@ def create_user(
         raise HTTPException(422, str(exc)) from exc
     return RedirectResponse("/", status_code=303)
 
+
 @app.post("/operations")
 def create_operation(
     kind: str = Form(...),
