@@ -62,7 +62,11 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     operations = db.scalars(
         select(Operation).order_by(Operation.created_at.desc()).limit(100)
     ).all()
-    transit = [\n        operation\n        for operation in operations\n        if operation.status in ("IN_TRANSIT", "SHIPPED")\n    ]
+    transit = [
+        operation
+        for operation in operations
+        if operation.status in ("IN_TRANSIT", "SHIPPED")
+    ]
     names = {
         warehouse.id: warehouse.name + (" (архив)" if warehouse.deleted_at else "")
         for warehouse in db.scalars(select(Warehouse)).all()
