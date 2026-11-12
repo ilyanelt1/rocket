@@ -91,8 +91,8 @@ def test_history_filters_by_type_status_and_archived_warehouse(auth_client):
     )
 
     assert response.status_code == 200
-    assert f"Исторический товар" in response.text
-    assert f"<code>TRANSFER</code>" in response.text
+    assert "Исторический товар" in response.text
+    assert "<code>TRANSFER</code>" in response.text
     assert "История Архив (архив)" in response.text
     assert f">{operations[1].id}<" in response.text
     assert f">{operations[0].id}<" not in response.text
