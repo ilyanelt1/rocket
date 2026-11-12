@@ -17,7 +17,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://checkstock:checkstock@db:5432/checkstock
     ports:
-      - "8000:8000"
+      - "8005:8005"
     depends_on:
       db:
         condition: service_healthy
