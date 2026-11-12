@@ -1,56 +1,7 @@
-from collections.abc import Generator
+from app.auth import hash_password, verify_password
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
-from app.auth import hash_password, verify_password
-from app.db import Base, get_db
-from app.main import app
 from app.models import User
-
-
-@pytest.fixture
-def auth_client() -> Generator[tuple[TestClient, object], None, None]:
-    test_engine = create_engine(
-        "sqlite+pysqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(test_engine)
-    test_session_factory = sessionmaker(
-        bind=test_engine, autoflush=False, expire_on_commit=False
-    )
-    db = test_session_factory()
-    db.add_all(
-        [
-            User(
-                username="admin",
-                password_hash=hash_password("admin-password-123"),
-                role="admin",
-            ),
-            User(
-                username="operator",
-                password_hash=hash_password("operator-password-123"),
-                role="operator",
-            ),
-        ]
-    )
-    db.commit()
-
-    def override_get_db():
-        yield db
-
-    app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as client:
-        yield client, db
-
-    app.dependency_overrides.clear()
-    db.close()
-    Base.metadata.drop_all(test_engine)
-    test_engine.dispose()
 
 
 def test_password_hash_is_salted_and_verified():
