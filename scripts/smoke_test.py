@@ -2,7 +2,6 @@ import http.cookiejar
 import json
 import os
 import sys
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -44,7 +43,9 @@ def main():
     payload = json.loads(response.read())
     required = {"physical", "in_transit", "total"}
     if not required.issubset(payload):
-        raise RuntimeError(f"Reconciliation response misses fields: {required - payload.keys()}")
+        raise RuntimeError(
+            f"Reconciliation response misses fields: {required - payload.keys()}"
+        )
     print("PASS: authenticated stock reconciliation API responds")
 
     response = request(client, "/logout", {})
