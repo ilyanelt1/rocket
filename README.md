@@ -40,6 +40,16 @@ pytest
 
 Текущие unit-тесты используют SQLite in-memory для быстрого изолированного прогона бизнес-правил. SQLite не реализует PostgreSQL `SELECT FOR UPDATE`, поэтому эти тесты не подтверждают конкурентное поведение блокировок. Для проверки транзакций и блокировок используйте PostgreSQL 16: запустите сервис БД через Compose и задайте тестам `DATABASE_URL=postgresql+psycopg://checkstock:checkstock@localhost:5432/checkstock`. Перед этим создайте отдельную тестовую БД и используйте её вместо рабочей. В реальном окружении списания выполняются с row-level lock.
 
+## CI — GitHub Actions
+
+GitHub Actions автоматически запускает проверки при push в `main`/`feature/**` и при создании pull request в `main`:
+
+- `compileall` — проверка синтаксиса Python;
+- Ruff — статический анализ ошибок и подозрительных конструкций;
+- `pytest` — запуск unit-тестов бизнес-логики.
+
+Проверки выполняются на Python 3.12. Локально их можно повторить командами `python -m compileall -q app tests`, `ruff check app tests` и `pytest -q`.
+
 ## Что реализовано
 
 - Товары с уникальным SKU, ФФ с архивированием, остатки по паре товар/склад.
