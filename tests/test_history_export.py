@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from sqlalchemy import select
+
 from app.models import AuditLog, Operation, Product, User, Warehouse
 
 
@@ -31,7 +33,7 @@ def _seed_export_data(db):
     )
     db.add(operation)
     db.flush()
-    admin = db.scalar(db.query(User).filter_by(username="admin").statement)
+    admin = db.scalar(select(User).where(User.username == "admin"))
     db.add(
         AuditLog(
             actor_user_id=admin.id,
