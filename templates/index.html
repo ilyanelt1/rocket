@@ -34,8 +34,37 @@
 <div class="col-md-2"><button class="btn btn-primary w-100">Создать</button></div>
 </form>
 </div>
-<div class="card p-3"><div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Логин</th><th>Роль</th><th>Статус</th></tr></thead><tbody>
-{% for account in users %}<tr><td>{{account.username}}</td><td>{{account.role}}</td><td>{{"Активен" if account.is_active else "Отключён"}}</td></tr>{% endfor %}
+<div class="card p-3"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
+<thead><tr><th>Логин</th><th>Роль</th><th>Статус</th><th>Управление</th></tr></thead><tbody>
+{% for account in users %}
+<tr>
+<td>{{account.username}}{% if account.id == user.id %} <span class="badge text-bg-info">Вы</span>{% endif %}</td>
+<td>
+<form method="post" action="/users/{{account.id}}/role" class="d-flex gap-2">
+<select name="role" class="form-select form-select-sm" {% if account.id == user.id %}disabled{% endif %}>
+<option value="admin" {% if account.role == "admin" %}selected{% endif %}>Администратор</option>
+<option value="warehouse_manager" {% if account.role == "warehouse_manager" %}selected{% endif %}>Менеджер склада</option>
+<option value="operator" {% if account.role == "operator" %}selected{% endif %}>Оператор</option>
+</select>
+{% if account.id != user.id %}<button class="btn btn-sm btn-outline-primary">Сохранить</button>{% endif %}
+</form>
+</td>
+<td>{% if account.is_active %}<span class="badge text-bg-success">Активен</span>{% else %}<span class="badge text-bg-secondary">Заблокирован</span>{% endif %}</td>
+<td>
+{% if account.id != user.id %}
+{% if account.is_active %}
+<form method="post" action="/users/{{account.id}}/deactivate" onsubmit="return confirm('Заблокировать пользователя {{account.username}}?')">
+<button class="btn btn-sm btn-outline-danger">Заблокировать</button>
+</form>
+{% else %}
+<form method="post" action="/users/{{account.id}}/activate">
+<button class="btn btn-sm btn-outline-success">Разблокировать</button>
+</form>
+{% endif %}
+{% else %}<span class="muted small">Свою учётную запись нельзя менять</span>{% endif %}
+</td>
+</tr>
+{% endfor %}
 </tbody></table></div></div>
 </section>
 {% endif %}
