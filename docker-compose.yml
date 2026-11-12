@@ -21,7 +21,7 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
     ports:
-      - "8005:8005"
+      - "${WEB_PORT:-8005}:8005"
     depends_on:
       db:
         condition: service_healthy

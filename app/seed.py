@@ -1,11 +1,13 @@
 from sqlalchemy import select
 
 from .db import Base, SessionLocal, engine
+from .migrations import apply_schema_migrations
 from .models import Product, StockBalance, Warehouse
 
 
 def seed():
     Base.metadata.create_all(bind=engine)
+    apply_schema_migrations(engine)
     with SessionLocal.begin() as db:
         products = [
             ("SKU-101", "Органайзер"),

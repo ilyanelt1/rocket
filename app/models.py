@@ -23,6 +23,7 @@ class Product(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     sku: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(200))
+    minimum_stock: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 
 class Warehouse(Base):

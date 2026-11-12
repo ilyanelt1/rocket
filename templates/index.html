@@ -5,7 +5,7 @@
 <body><nav class="navbar navbar-dark mb-4"><div class="container"><span class="navbar-brand fw-bold">📦 CheckStock</span><div class="d-flex align-items-center gap-3"><span class="text-white-50">{{ user.username }} · {{ user.role }}</span><form method="post" action="/logout"><button class="btn btn-sm btn-outline-light">Выйти</button></form></div></div></nav>
 <main class="container pb-5">
 {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
-<ul class="nav nav-tabs mb-3"><li class="nav-item"><a class="nav-link active" href="#overview">Обзор</a></li><li class="nav-item"><a class="nav-link" href="#stock">Остатки</a></li>{% if user.role in ["admin", "warehouse_manager"] %}<li class="nav-item"><a class="nav-link" href="#warehouses">Склады</a></li>{% endif %}<li class="nav-item"><a class="nav-link" href="#operations">Операции</a></li><li class="nav-item"><a class="nav-link" href="/history">История</a></li>{% if user.role == "admin" %}<li class="nav-item"><a class="nav-link" href="#users">Пользователи</a></li><li class="nav-item"><a class="nav-link" href="#audit">Аудит</a></li>{% endif %}</ul>
+<ul class="nav nav-tabs mb-3"><li class="nav-item"><a class="nav-link active" href="#overview">Обзор</a></li><li class="nav-item"><a class="nav-link" href="#stock">Остатки</a></li><li class="nav-item"><a class="nav-link" href="#stock-alerts">Контроль остатков</a></li>{% if user.role in ["admin", "warehouse_manager"] %}<li class="nav-item"><a class="nav-link" href="#warehouses">Склады</a></li>{% endif %}<li class="nav-item"><a class="nav-link" href="#operations">Операции</a></li><li class="nav-item"><a class="nav-link" href="/history">История</a></li>{% if user.role == "admin" %}<li class="nav-item"><a class="nav-link" href="#users">Пользователи</a></li><li class="nav-item"><a class="nav-link" href="#audit">Аудит</a></li>{% endif %}</ul>
 <section id="overview" class="mb-4">
 <h4>Сводка склада</h4>
 <div class="row g-3 mb-3">
@@ -15,6 +15,7 @@
 <div class="col-md-4 col-lg-2"><div class="card p-3 h-100"><div class="muted small">Резерв FBS</div><h3 class="mb-0">{{stock_summary.reserved_qty}}</h3></div></div>
 <div class="col-md-4 col-lg-2"><div class="card p-3 h-100"><div class="muted small">Доступно</div><h3 class="mb-0">{{stock_summary.available_qty}}</h3></div></div>
 <div class="col-md-4 col-lg-2"><div class="card p-3 h-100"><div class="muted small">Без доступного остатка</div><h3 class="mb-0">{{stock_summary.out_of_stock_count}}</h3></div></div>
+<div class="col-md-4 col-lg-2"><div class="card p-3 h-100"><div class="muted small">Ниже минимума</div><h3 class="mb-0">{{stock_summary.low_stock_count}}</h3></div></div>
 </div>
 <div class="card p-3">
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2"><strong>Товары без доступного остатка</strong><a class="btn btn-sm btn-outline-primary" href="/history">История операций</a></div>
@@ -22,6 +23,22 @@
 {% for item in out_of_stock_products %}<tr><td>{{item.sku}}</td><td>{{item.name}}</td><td><span class="badge text-bg-danger">{{item.available_qty}}</span></td></tr>{% else %}<tr><td colspan="3" class="text-center muted">Все товары имеют доступный остаток</td></tr>{% endfor %}
 </tbody></table></div>
 <div class="muted small mt-2">Учитываются только активные склады. Товары без остатков также отображаются в списке.</div>
+</div>
+<div class="card p-3 mt-3">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2"><strong>Предупреждения о минимальном остатке</strong><span class="badge text-bg-warning">{{stock_summary.low_stock_count}}</span></div>
+<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>SKU</th><th>Товар</th><th>Доступно</th><th>Минимум</th><th>Статус</th></tr></thead><tbody>
+{% for item in low_stock_products %}<tr><td>{{item.sku}}</td><td>{{item.name}}</td><td>{{item.available_qty}}</td><td>{{item.minimum_stock}}</td><td>{% if item.available_qty <= 0 %}<span class="badge text-bg-danger">Нет остатка</span>{% else %}<span class="badge text-bg-warning">Ниже минимума</span>{% endif %}</td></tr>{% else %}<tr><td colspan="5" class="text-center muted">Нет товаров ниже установленного минимума</td></tr>{% endfor %}
+</tbody></table></div>
+<div class="muted small mt-2">Проверяется суммарное доступное количество на активных складах. Значение минимума 0 отключает предупреждение для товара.</div>
+</div>
+</section>
+<section id="stock-alerts" class="mb-4">
+<h4>Настройка минимальных остатков</h4>
+<div class="card p-3"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
+<thead><tr><th>SKU</th><th>Товар</th><th>Минимальный остаток</th><th></th></tr></thead><tbody>
+{% for p in products %}<tr><td>{{p.sku}}</td><td>{{p.name}}</td><td>{% if user.role in ["admin", "warehouse_manager"] %}<form method="post" action="/products/{{p.id}}/minimum-stock" class="d-flex gap-2"><input class="form-control form-control-sm" style="max-width:120px" type="number" name="minimum_stock" min="0" step="1" value="{{p.minimum_stock}}" required><button class="btn btn-sm btn-outline-primary">Сохранить</button></form>{% else %}{{p.minimum_stock}}{% endif %}</td><td></td></tr>{% else %}<tr><td colspan="4" class="text-center muted">Товары не добавлены</td></tr>{% endfor %}
+</tbody></table></div>
+<div class="muted small mt-2">Настраивать порог могут администратор и менеджер склада. Изменения записываются в журнал аудита.</div>
 </div>
 </section>
 <section id="stock" class="mb-4"><h4>Остатки по складам</h4><div class="card p-3"><div class="table-responsive"><table class="table table-hover"><thead><tr><th>SKU</th><th>Товар</th><th>ФФ</th><th>Физически</th><th>Доступно</th><th>Резерв FBS</th></tr></thead><tbody>
