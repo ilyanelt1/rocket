@@ -487,7 +487,7 @@ def export_operation_history(
             (
                 f"'{value}"
                 if isinstance(value, str)
-                and value.startswith(("=", "+", "-", "@", "\\t", "\\r"))
+                and value.startswith(("=", "+", "-", "@", "\t", "\r"))
                 else value
             )
             for value in values
