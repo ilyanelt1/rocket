@@ -345,7 +345,9 @@ def update_user_role(
         and role != "admin"
         and len(active_admins) <= 1
     ):
-        raise HTTPException(409, "Нельзя понизить роль последнего активного администратора")
+        raise HTTPException(
+            409, "Нельзя понизить роль последнего активного администратора"
+        )
 
     old_role = account.role
     account.role = role
@@ -369,19 +371,23 @@ def deactivate_user(
 ):
     if user_id == user.id:
         raise HTTPException(409, "Нельзя заблокировать собственную учётную запись")
-    active_admins = db.scalars(
+    active_admins = _lock_active_admins(db)
+    if not any(account.id == user.id for account in active_admins):
+        raise HTTPException(403, "Недостаточно прав для выполнения действия")
+    account = db.scalar(
         select(User)
-        .where(User.role == "admin", User.is_active.is_(True))
-        .order_by(User.id)
+        .where(User.id == user_id)
         .with_for_update()
-    ).all()
-    account = db.scalar(select(User).where(User.id == user_id).with_for_update())
+        .execution_options(populate_existing=True)
+    )
     if account is None:
         raise HTTPException(404, "Пользователь не найден")
     if not account.is_active:
         return RedirectResponse("/#users", status_code=303)
     if account.role == "admin" and len(active_admins) <= 1:
-        raise HTTPException(409, "Нельзя заблокировать последнего активного администратора")
+        raise HTTPException(
+            409, "Нельзя заблокировать последнего активного администратора"
+        )
 
     account.is_active = False
     record_audit_event(
@@ -402,7 +408,12 @@ def activate_user(
     user: User = Depends(require_roles("admin")),
     db: Session = Depends(get_db),
 ):
-    account = db.scalar(select(User).where(User.id == user_id).with_for_update())
+    account = db.scalar(
+        select(User)
+        .where(User.id == user_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if account is None:
         raise HTTPException(404, "Пользователь не найден")
     if account.is_active:
