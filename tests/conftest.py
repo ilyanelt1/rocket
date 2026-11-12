@@ -69,7 +69,6 @@ def ids(db):
     }
 
 
-
 @pytest.fixture
 def auth_client():
     test_engine = create_engine(
