@@ -158,6 +158,7 @@ def reserve_fbs(
     warehouse_id: int,
     qty: int,
     key: str | None = None,
+    actor_user_id: int | None = None,
 ):
     def action():
         _positive(qty)
@@ -184,10 +185,15 @@ def reserve_fbs(
             key=key,
         )
 
-    return _run(db, action, key)
+    return _run(db, action, key, actor_user_id)
 
 
-def cancel_fbs(db: Session, reserve_id: int, key: str | None = None):
+def cancel_fbs(
+    db: Session,
+    reserve_id: int,
+    key: str | None = None,
+    actor_user_id: int | None = None,
+):
     def action():
         old = _existing(db, key)
         if old:
@@ -220,10 +226,15 @@ def cancel_fbs(db: Session, reserve_id: int, key: str | None = None):
             related=reserve.id,
         )
 
-    return _run(db, action, key)
+    return _run(db, action, key, actor_user_id)
 
 
-def ship_fbs(db: Session, reserve_id: int, key: str | None = None):
+def ship_fbs(
+    db: Session,
+    reserve_id: int,
+    key: str | None = None,
+    actor_user_id: int | None = None,
+):
     def action():
         old = _existing(db, key)
         if old:
@@ -257,7 +268,7 @@ def ship_fbs(db: Session, reserve_id: int, key: str | None = None):
             related=reserve.id,
         )
 
-    return _run(db, action, key)
+    return _run(db, action, key, actor_user_id)
 
 
 def transfer(
@@ -267,6 +278,7 @@ def transfer(
     destination_id: int,
     qty: int,
     key: str | None = None,
+    actor_user_id: int | None = None,
 ):
     def action():
         _positive(qty)
@@ -298,7 +310,7 @@ def transfer(
             key=key,
         )
 
-    return _run(db, action, key)
+    return _run(db, action, key, actor_user_id)
 
 
 def fbo_send(
@@ -307,6 +319,7 @@ def fbo_send(
     source_id: int,
     qty: int,
     key: str | None = None,
+    actor_user_id: int | None = None,
 ):
     def action():
         _positive(qty)
@@ -333,13 +346,14 @@ def fbo_send(
             key=key,
         )
 
-    return _run(db, action, key)
+    return _run(db, action, key, actor_user_id)
 
 
 def accept_movement(
     db: Session,
     operation_id: int,
     key: str | None = None,
+    actor_user_id: int | None = None,
 ):
     def action():
         old = _existing(db, key)
@@ -378,7 +392,7 @@ def accept_movement(
             related=operation.id,
         )
 
-    return _run(db, action, key)
+    return _run(db, action, key, actor_user_id)
 
 
 def reconcile(db: Session, product_id: int):
