@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import Operation, StockBalance, Warehouse
+from .models import AuditLog, Operation, StockBalance, Warehouse
 
 
 class StockError(Exception):
@@ -84,9 +84,31 @@ def _record(
     return operation
 
 
-def _run(db: Session, action, key: str | None = None):
+def _run(
+    db: Session,
+    action,
+    key: str | None = None,
+    actor_user_id: int | None = None,
+):
     try:
         result = action()
+        if actor_user_id is not None:
+            db.add(
+                AuditLog(
+                    actor_user_id=actor_user_id,
+                    action=f"stock.{result.type.lower()}",
+                    entity_type="operation",
+                    entity_id=result.id,
+                    details={
+                        "operation_type": result.type,
+                        "status": result.status,
+                        "product_id": result.product_id,
+                        "quantity": result.qty,
+                        "source_warehouse_id": result.source_warehouse_id,
+                        "destination_warehouse_id": result.destination_warehouse_id,
+                    },
+                )
+            )
         db.commit()
         return result
     except Exception:
@@ -106,6 +128,7 @@ def receipt(
     warehouse_id: int,
     qty: int,
     key: str | None = None,
+    actor_user_id: int | None = None,
 ):
     def action():
         _positive(qty)
@@ -126,7 +149,7 @@ def receipt(
             key=key,
         )
 
-    return _run(db, action, key)
+    return _run(db, action, key, actor_user_id)
 
 
 def reserve_fbs(
