@@ -91,8 +91,9 @@ def _run(
     actor_user_id: int | None = None,
 ):
     try:
+        existing_before = _existing(db, key)
         result = action()
-        if actor_user_id is not None:
+        if actor_user_id is not None and existing_before is None:
             db.add(
                 AuditLog(
                     actor_user_id=actor_user_id,
