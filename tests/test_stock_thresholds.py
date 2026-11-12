@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import inspect, text, select
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, select, text
 
 from app.migrations import apply_schema_migrations
 from app.models import AuditLog, Product, StockBalance, Warehouse
@@ -133,7 +132,9 @@ def test_minimum_stock_migration_is_idempotent_and_preserves_existing_products()
     apply_schema_migrations(engine)
 
     with engine.connect() as connection:
-        columns = {column["name"] for column in inspect(connection).get_columns("products")}
+        columns = {
+            column["name"] for column in inspect(connection).get_columns("products")
+        }
         row = connection.execute(
             text("SELECT sku, name, minimum_stock FROM products WHERE id = 1")
         ).one()
