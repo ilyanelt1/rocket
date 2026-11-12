@@ -52,9 +52,7 @@ def _balance(
 def _existing(db: Session, key: str | None):
     if not key:
         return None
-    return db.scalar(
-        select(Operation).where(Operation.idempotency_key == key)
-    )
+    return db.scalar(select(Operation).where(Operation.idempotency_key == key))
 
 
 def _record(
@@ -79,9 +77,7 @@ def _record(
         idempotency_key=key,
         note=note,
         related_operation_id=related,
-        confirmed_at=(
-            datetime.now(timezone.utc) if status == "DONE" else None
-        ),
+        confirmed_at=(datetime.now(timezone.utc) if status == "DONE" else None),
     )
     db.add(operation)
     db.flush()
@@ -175,15 +171,9 @@ def cancel_fbs(db: Session, reserve_id: int, key: str | None = None):
             return old
 
         reserve = db.scalar(
-            select(Operation)
-            .where(Operation.id == reserve_id)
-            .with_for_update()
+            select(Operation).where(Operation.id == reserve_id).with_for_update()
         )
-        if (
-            not reserve
-            or reserve.type != "FBS_RESERVE"
-            or reserve.status != "DONE"
-        ):
+        if not reserve or reserve.type != "FBS_RESERVE" or reserve.status != "DONE":
             raise StockError("Активный резерв не найден.")
 
         balance = _balance(
@@ -217,15 +207,9 @@ def ship_fbs(db: Session, reserve_id: int, key: str | None = None):
             return old
 
         reserve = db.scalar(
-            select(Operation)
-            .where(Operation.id == reserve_id)
-            .with_for_update()
+            select(Operation).where(Operation.id == reserve_id).with_for_update()
         )
-        if (
-            not reserve
-            or reserve.type != "FBS_RESERVE"
-            or reserve.status != "DONE"
-        ):
+        if not reserve or reserve.type != "FBS_RESERVE" or reserve.status != "DONE":
             raise StockError("Активный резерв не найден.")
 
         balance = _balance(
@@ -233,10 +217,7 @@ def ship_fbs(db: Session, reserve_id: int, key: str | None = None):
             reserve.product_id,
             reserve.source_warehouse_id,
         )
-        if (
-            balance.physical_qty < reserve.qty
-            or balance.reserved_qty < reserve.qty
-        ):
+        if balance.physical_qty < reserve.qty or balance.reserved_qty < reserve.qty:
             raise StockError("Недостаточно физического или резервного остатка.")
 
         balance.physical_qty -= reserve.qty
@@ -271,9 +252,7 @@ def transfer(
             return old
 
         if source_id == destination_id:
-            raise StockError(
-                "Склады отправления и получения должны различаться."
-            )
+            raise StockError("Склады отправления и получения должны различаться.")
 
         _warehouse(db, source_id)
         _warehouse(db, destination_id)
@@ -345,9 +324,7 @@ def accept_movement(
             return old
 
         operation = db.scalar(
-            select(Operation)
-            .where(Operation.id == operation_id)
-            .with_for_update()
+            select(Operation).where(Operation.id == operation_id).with_for_update()
         )
         if (
             not operation
@@ -369,11 +346,7 @@ def accept_movement(
         operation.confirmed_at = datetime.now(timezone.utc)
         return _record(
             db,
-            (
-                "TRANSFER_RECEIVE"
-                if operation.type == "TRANSFER"
-                else "FBO_ACCEPT"
-            ),
+            ("TRANSFER_RECEIVE" if operation.type == "TRANSFER" else "FBO_ACCEPT"),
             "DONE",
             operation.product_id,
             operation.qty,
