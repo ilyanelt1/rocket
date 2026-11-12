@@ -94,9 +94,9 @@ def test_history_filters_by_type_status_and_archived_warehouse(auth_client):
     assert "Исторический товар" in response.text
     assert "<code>TRANSFER</code>" in response.text
     assert "История Архив (архив)" in response.text
-    assert f">{operations[1].id}<" in response.text
-    assert f">{operations[0].id}<" not in response.text
-    assert f">{operations[2].id}<" not in response.text
+    assert f"<tr><td>{operations[1].id}</td>" in response.text
+    assert f"<tr><td>{operations[0].id}</td>" not in response.text
+    assert f"<tr><td>{operations[2].id}</td>" not in response.text
     assert "admin" in response.text
 
 
@@ -117,9 +117,9 @@ def test_history_search_and_date_filters(auth_client):
     )
 
     assert response.status_code == 200
-    assert f">{operations[0].id}<" not in response.text
-    assert f">{operations[1].id}<" in response.text
-    assert f">{operations[2].id}<" in response.text
+    assert f"<tr><td>{operations[0].id}</td>" not in response.text
+    assert f"<tr><td>{operations[1].id}</td>" in response.text
+    assert f"<tr><td>{operations[2].id}</td>" in response.text
     assert product.sku in response.text
 
 
