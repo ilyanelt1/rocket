@@ -41,12 +41,20 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         with SessionLocal.begin() as db:
             admin = db.scalar(select(User).where(User.username == username))
             if admin is None:
-                db.add(
-                    User(
-                        username=username,
-                        password_hash=hash_password(password),
-                        role="admin",
-                    )
+                admin = User(
+                    username=username,
+                    password_hash=hash_password(password),
+                    role="admin",
+                )
+                db.add(admin)
+                db.flush()
+                record_audit_event(
+                    db,
+                    None,
+                    "user.bootstrap_create",
+                    "user",
+                    admin.id,
+                    {"username": admin.username, "role": admin.role},
                 )
     yield
 
@@ -96,12 +104,22 @@ def login(
 ):
     from .auth import verify_password
 
-    user = db.scalar(select(User).where(User.username == username.strip()))
+    cleaned_username = username.strip()
+    user = db.scalar(select(User).where(User.username == cleaned_username))
     if (
         user is None
         or not user.is_active
         or not verify_password(password, user.password_hash)
     ):
+        record_audit_event(
+            db,
+            None,
+            "auth.login_failed",
+            "user",
+            user.id if user is not None else None,
+            {"username": cleaned_username, "reason": "invalid_credentials"},
+        )
+        db.commit()
         return templates.TemplateResponse(
             request,
             "login.html",
@@ -227,6 +245,7 @@ def rename_warehouse(
     cleaned_name = name.strip()
     if not cleaned_name:
         raise HTTPException(422, "Название склада не может быть пустым")
+    old_name = warehouse.name
     warehouse.name = cleaned_name
     record_audit_event(
         db,
@@ -234,7 +253,7 @@ def rename_warehouse(
         "warehouse.rename",
         "warehouse",
         warehouse.id,
-        {"name": cleaned_name},
+        {"old_name": old_name, "new_name": cleaned_name},
     )
     db.commit()
     return RedirectResponse("/", status_code=303)
@@ -256,7 +275,7 @@ def delete_warehouse(
         "warehouse.archive",
         "warehouse",
         warehouse.id,
-        {"name": warehouse.name},
+        {"name": warehouse.name, "archived_at": warehouse.deleted_at.isoformat()},
     )
     db.commit()
     return RedirectResponse("/", status_code=303)
