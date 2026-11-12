@@ -57,11 +57,17 @@ def test_warehouse_soft_delete_keeps_balance_and_history(db,ids):
     with pytest.raises(StockError): receipt(db,ids["product"],ids["north"],1)
     assert db.scalar(select(Operation).where(Operation.type=="RECEIPT")) is not None
 
-def test_idempotency_does_not_double_apply(db,ids):
-    first=receipt(db,ids["product"],ids["north"],5,"same-key")
-    second=receipt(db,ids["product"],ids["north"],5,"same-key")
+def test_idempotency_does_not_double_confirm_or_apply(db,ids):
+    first=receipt(db,ids["product"],ids["north"],5,"receipt-key")
+    second=receipt(db,ids["product"],ids["north"],5,"receipt-key")
     assert first.id==second.id
     assert bal(db,ids["product"],ids["north"]).physical_qty==15
+
+    movement=transfer(db,ids["product"],ids["north"],ids["south"],2)
+    accepted=accept_movement(db,movement.id,"accept-key")
+    repeated=accept_movement(db,movement.id,"accept-key")
+    assert accepted.id==repeated.id
+    assert bal(db,ids["product"],ids["south"]).physical_qty==8
 
 def test_reconciliation_counts_stock_and_goods_in_transit(db,ids):
     transfer(db,ids["product"],ids["north"],ids["south"],3)
