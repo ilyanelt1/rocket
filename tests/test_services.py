@@ -79,9 +79,7 @@ def test_fbo_send_and_acceptance(db, ids):
 
     accept_movement(db, operation.id)
     assert db.get(Operation, operation.id).status == "ACCEPTED"
-    accepted = db.scalar(
-        select(Operation).where(Operation.type == "FBO_ACCEPT")
-    )
+    accepted = db.scalar(select(Operation).where(Operation.type == "FBO_ACCEPT"))
     assert accepted.qty == 2
 
 
@@ -103,10 +101,7 @@ def test_warehouse_soft_delete_keeps_balance_and_history(db, ids):
     with pytest.raises(StockError):
         receipt(db, ids["product"], ids["north"], 1)
 
-    assert (
-        db.scalar(select(Operation).where(Operation.type == "RECEIPT"))
-        is not None
-    )
+    assert db.scalar(select(Operation).where(Operation.type == "RECEIPT")) is not None
 
 
 def test_idempotency_does_not_double_confirm_or_apply(db, ids):
