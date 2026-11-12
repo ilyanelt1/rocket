@@ -91,7 +91,7 @@ def test_history_export_applies_search_filter_and_prevents_formula_injection(
 ):
     client, db = auth_client
     operation, _, _ = _seed_export_data(db)
-    operation.note = "=HYPERLINK(\"https://example.com\")"
+    operation.note = '=HYPERLINK("https://example.com")'
     db.commit()
     _login(client)
 
