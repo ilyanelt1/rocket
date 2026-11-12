@@ -450,7 +450,7 @@ def export_operation_history(
     ).all()
 
     output = io.StringIO()
-    writer = csv.writer(output, delimiter=";", lineterminator="\\r\\n")
+    writer = csv.writer(output, delimiter=";", lineterminator="\r\n")
     writer.writerow(
         [
             "ID операции",
@@ -491,7 +491,7 @@ def export_operation_history(
         ]
         writer.writerow(safe_values)
 
-    content = "\\ufeff" + output.getvalue()
+    content = "\ufeff" + output.getvalue()
     filename = f"checkstock_operations_{datetime.now(timezone.utc):%Y%m%d}.csv"
     return Response(
         content=content,
