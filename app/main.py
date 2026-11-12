@@ -1,5 +1,7 @@
 import os
 import secrets
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
@@ -25,7 +27,29 @@ from .services import (
     transfer,
 )
 
-app = FastAPI(title="CheckStock")
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    Base.metadata.create_all(bind=engine)
+    username = os.getenv("ADMIN_USERNAME")
+    password = os.getenv("ADMIN_PASSWORD")
+    if username and password:
+        from .auth import hash_password
+        from .db import SessionLocal
+
+        with SessionLocal.begin() as db:
+            admin = db.scalar(select(User).where(User.username == username))
+            if admin is None:
+                db.add(
+                    User(
+                        username=username,
+                        password_hash=hash_password(password),
+                        role="admin",
+                    )
+                )
+    yield
+
+
+app = FastAPI(title="CheckStock", lifespan=lifespan)
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SESSION_SECRET") or secrets.token_urlsafe(32),
@@ -59,6 +83,7 @@ def startup():
 @app.exception_handler(StockError)
 async def stock_error_handler(request: Request, exc: StockError):
     return templates.TemplateResponse(
+        request,
         "index.html",
         context={
             "request": request,
@@ -78,7 +103,7 @@ async def stock_error_handler(request: Request, exc: StockError):
 def login_page(request: Request):
     if request.session.get("user_id"):
         return RedirectResponse("/", status_code=303)
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    return templates.TemplateResponse(request, "login.html", {"error": None})
 
 
 @app.post("/login")
@@ -97,8 +122,9 @@ def login(
         or not verify_password(password, user.password_hash)
     ):
         return templates.TemplateResponse(
+            request,
             "login.html",
-            {"request": request, "error": "Неверный логин или пароль"},
+            {"error": "Неверный логин или пароль"},
             status_code=401,
         )
     request.session.clear()
@@ -146,6 +172,7 @@ def dashboard(
     users = db.scalars(select(User).order_by(User.username)).all()
 
     return templates.TemplateResponse(
+        request,
         "index.html",
         {
             "request": request,
