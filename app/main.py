@@ -27,6 +27,7 @@ from .services import (
     transfer,
 )
 
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     Base.metadata.create_all(bind=engine)
@@ -57,27 +58,6 @@ app.add_middleware(
     same_site="lax",
 )
 templates = Jinja2Templates(directory="templates")
-
-
-@app.on_event("startup")
-def startup():
-    Base.metadata.create_all(bind=engine)
-    username = os.getenv("ADMIN_USERNAME")
-    password = os.getenv("ADMIN_PASSWORD")
-    if username and password:
-        from .auth import hash_password
-        from .db import SessionLocal
-
-        with SessionLocal.begin() as db:
-            admin = db.scalar(select(User).where(User.username == username))
-            if admin is None:
-                db.add(
-                    User(
-                        username=username,
-                        password_hash=hash_password(password),
-                        role="admin",
-                    )
-                )
 
 
 @app.exception_handler(StockError)
