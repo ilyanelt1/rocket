@@ -78,9 +78,7 @@ async def stock_error_handler(request: Request, exc: StockError):
 def login_page(request: Request):
     if request.session.get("user_id"):
         return RedirectResponse("/", status_code=303)
-    return templates.TemplateResponse(
-        "login.html", {"request": request, "error": None}
-    )
+    return templates.TemplateResponse("login.html", {"request": request, "error": None})
 
 
 @app.post("/login")
@@ -93,8 +91,10 @@ def login(
     from .auth import verify_password
 
     user = db.scalar(select(User).where(User.username == username.strip()))
-    if user is None or not user.is_active or not verify_password(
-        password, user.password_hash
+    if (
+        user is None
+        or not user.is_active
+        or not verify_password(password, user.password_hash)
     ):
         return templates.TemplateResponse(
             "login.html",
