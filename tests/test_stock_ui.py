@@ -56,21 +56,27 @@ def test_stock_shortage_renders_readable_error_without_mutating_balances(auth_cl
     assert "Операция не выполнена" in response.text
     assert "Недостаточно доступного остатка на выбранном ФФ" in response.text
     assert "Вернуться к остаткам" in response.text
-    assert db.scalar(
-        select(StockBalance).where(
-            StockBalance.product_id == product.id,
-            StockBalance.warehouse_id == south.id,
-        )
-    ).physical_qty == 1
-    assert db.scalar(
-        select(StockBalance).where(
-            StockBalance.product_id == product.id,
-            StockBalance.warehouse_id == north.id,
-        )
-    ).physical_qty == 10
-    assert db.scalar(
-        select(Operation).where(Operation.product_id == product.id)
-    ) is None
+    assert (
+        db.scalar(
+            select(StockBalance).where(
+                StockBalance.product_id == product.id,
+                StockBalance.warehouse_id == south.id,
+            )
+        ).physical_qty
+        == 1
+    )
+    assert (
+        db.scalar(
+            select(StockBalance).where(
+                StockBalance.product_id == product.id,
+                StockBalance.warehouse_id == north.id,
+            )
+        ).physical_qty
+        == 10
+    )
+    assert (
+        db.scalar(select(Operation).where(Operation.product_id == product.id)) is None
+    )
 
 
 def test_dashboard_lists_all_active_transit_even_when_not_in_latest_100(auth_client):
