@@ -146,3 +146,49 @@ GitHub Actions автоматически запускает проверки п
 - FBO-приёмка фиксирует остаток на стороне маркетплейса в движении, но не ведёт отдельный склад маркетплейса.
 - Интерфейс минимальный; операции подтверждаются через ID из истории.
 - Тесты по умолчанию быстрые SQLite unit-тесты; SQLite не проверяет блокировки `FOR UPDATE`. Перед сдачей рекомендуется прогон на PostgreSQL 16 и проверка конкурентных повторов.
+
+
+## Эксплуатация: health checks, безопасность и резервные копии
+
+### Health checks
+
+- `GET /health/live` — liveness: подтверждает, что процесс приложения отвечает; не обращается к БД.
+- `GET /health/ready` — readiness: выполняет `SELECT 1` в PostgreSQL и возвращает HTTP 503, если БД недоступна.
+- Docker Compose использует readiness endpoint для проверки web-контейнера. PostgreSQL отдельно проверяется через `pg_isready`.
+
+### Резервное копирование PostgreSQL
+
+Резервная копия создаётся в формате PostgreSQL custom archive. Команды выполняются с хоста, где доступен Docker Compose:
+
+```powershell
+python scripts/db_backup.py backup
+python scripts/db_backup.py verify backups/<имя-файла>.dump
+```
+
+- `backup` создаёт файл в `backups/` с UTC-временем в имени.
+- `verify` поднимает временную БД внутри контейнера PostgreSQL, восстанавливает архив в неё и проверяет наличие таблицы `products`. Временная БД удаляется после проверки.
+- Восстановление в рабочую БД — разрушительная операция. Сначала останови приложение, сохрани текущую копию, затем выполни `python scripts/db_backup.py restore backups/<имя-файла>.dump --yes`. После восстановления запусти приложение и проверь данные.
+- Скрипт использует параметры подключения из `.env`/окружения: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`. Пароль рекомендуется генерировать в URL-safe формате, например `secrets.token_urlsafe(32)`.
+- Файлы резервных копий не должны попадать в Git или храниться только на том же диске, что и база. Для реального production настрой регулярное копирование на отдельное защищённое хранилище и политику хранения (например, ежедневные копии + ротация).
+
+Пример ежедневного запуска на Windows — через Task Scheduler; на Linux — через cron/systemd timer. Перед использованием расписания сначала проверь ручной backup и restore на тестовой БД. Резервная копия считается проверенной только после успешного тестового восстановления.
+
+### Безопасность перед публикацией
+
+- В production установи уникальные `SESSION_SECRET`, `ADMIN_PASSWORD` и `POSTGRES_PASSWORD`; не используй значения из примера.
+- Разворачивай приложение за HTTPS reverse proxy и установи `COOKIE_SECURE=true`. При HTTP локальной разработки оставляй `false`.
+- Не публикуй PostgreSQL порт наружу; по умолчанию он не проброшен на хост.
+- Security middleware добавляет `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` и ограничивающий `Permissions-Policy`.
+- Ограничь доступ к резервным копиям и секретам на уровне ОС/хранилища. Не передавай архивы через публичные ссылки.
+- Перед открытием сервиса в интернет добавь HTTPS termination, rate limiting на reverse proxy, централизованный сбор логов, мониторинг свободного места и оповещения о неуспешном backup.
+
+### Локальная проверка готовности
+
+```powershell
+docker compose up --build -d --wait
+Invoke-RestMethod http://localhost:8005/health/live
+Invoke-RestMethod http://localhost:8005/health/ready
+python scripts/db_backup.py backup
+python scripts/db_backup.py verify <путь-к-архиву>
+docker compose down
+```
