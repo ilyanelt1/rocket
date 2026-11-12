@@ -23,7 +23,7 @@ body{background:#f5f7fb}.navbar{background:#14213d}.card{border:0;box-shadow:0 3
 <div class="col-lg-3 col-md-6"><label class="form-label">Склад</label><select name="warehouse_id" class="form-select"><option value="">Все склады</option>{% for w in warehouses %}<option value="{{w.id}}" {% if filters.warehouse_id == w.id %}selected{% endif %}>{{w.name}}{% if w.deleted_at %} (архив){% endif %}</option>{% endfor %}</select></div>
 <div class="col-lg-3 col-md-6"><label class="form-label">Дата с</label><input type="date" name="date_from" value="{{filters.date_from}}" class="form-control"></div>
 <div class="col-lg-3 col-md-6"><label class="form-label">Дата по</label><input type="date" name="date_to" value="{{filters.date_to}}" class="form-control"></div>
-<div class="col-12 d-flex flex-wrap gap-2"><button class="btn btn-primary" type="button" hx-get="/history" hx-include="#history-filters" hx-target="#history-results" hx-push-url="true">Применить фильтры</button><button class="btn btn-outline-success" type="submit" formaction="/history/export" formmethod="get">Экспорт CSV</button><a href="/history" class="btn btn-outline-secondary">Сбросить</a></div>
+<div class="col-12 d-flex flex-wrap gap-2"><button class="btn btn-primary" type="button" hx-get="/history" hx-include="#history-filters" hx-target="#history-results" hx-push-url="true" hx-swap="outerHTML">Применить фильтры</button><button class="btn btn-outline-success" type="submit" formaction="/history/export" formmethod="get">Экспорт CSV</button><a href="/history" class="btn btn-outline-secondary">Сбросить</a></div>
 </div>
 </form>
 {% include "history_results.html" %}
