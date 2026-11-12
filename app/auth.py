@@ -17,9 +17,7 @@ def hash_password(password: str) -> str:
         raise ValueError("Пароль должен содержать не менее 12 символов")
     salt = secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, _ITERATIONS)
-    return "pbkdf2_sha256${}${}${}".format(
-        _ITERATIONS, salt.hex(), digest.hex()
-    )
+    return "pbkdf2_sha256${}${}${}".format(_ITERATIONS, salt.hex(), digest.hex())
 
 
 def verify_password(password: str, encoded: str) -> bool:
@@ -31,7 +29,7 @@ def verify_password(password: str, encoded: str) -> bool:
             "sha256", password.encode(), bytes.fromhex(salt_hex), int(iterations)
         )
         return hmac.compare_digest(actual, bytes.fromhex(digest_hex))
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return False
 
 
