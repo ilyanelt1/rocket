@@ -109,15 +109,21 @@ def build_parser():
         description="Create, verify, and restore CheckStock PostgreSQL backups."
     )
     commands = parser.add_subparsers(dest="command", required=True)
-    backup_parser = commands.add_parser("backup", help="Create a custom-format backup")
+    backup_parser = commands.add_parser(
+        "backup", help="Create a custom-format backup"
+    )
     backup_parser.add_argument(
         "--output",
         type=Path,
         help="Output archive path (default: backups/checkstock_<UTC timestamp>.dump)",
     )
-    verify_parser = commands.add_parser("verify", help="Restore into a temporary DB and verify")
+    verify_parser = commands.add_parser(
+        "verify", help="Restore into a temporary DB and verify"
+    )
     verify_parser.add_argument("archive", type=Path)
-    restore_parser = commands.add_parser("restore", help="Restore into the configured database")
+    restore_parser = commands.add_parser(
+        "restore", help="Restore into the configured database"
+    )
     restore_parser.add_argument("archive", type=Path)
     restore_parser.add_argument(
         "--yes",
