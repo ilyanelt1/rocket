@@ -219,9 +219,35 @@ def test_last_admin_protection_allows_change_when_another_admin_exists(auth_clie
             "role": "admin",
         },
     )
-
-    response = client.post("/users/1/deactivate", follow_redirects=False)
-
-    assert response.status_code == 409
     second_admin = db.query(User).filter_by(username="second-admin").one()
+    first_admin = db.query(User).filter_by(username="admin").one()
+
+    client.post("/logout", follow_redirects=False)
+    client.post(
+        "/login",
+        data={"username": "second-admin", "password": "second-admin-password"},
+    )
+
+    demote = client.post(
+        f"/users/{first_admin.id}/role",
+        data={"role": "operator"},
+        follow_redirects=False,
+    )
+    assert demote.status_code == 303
+    assert first_admin.role == "operator"
+
+    promote = client.post(
+        f"/users/{first_admin.id}/role",
+        data={"role": "admin"},
+        follow_redirects=False,
+    )
+    assert promote.status_code == 303
+
+    deactivate = client.post(
+        f"/users/{first_admin.id}/deactivate",
+        follow_redirects=False,
+    )
+
+    assert deactivate.status_code == 303
+    assert first_admin.is_active is False
     assert second_admin.is_active is True
