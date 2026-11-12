@@ -16,6 +16,10 @@ services:
     build: .
     environment:
       DATABASE_URL: postgresql+psycopg://checkstock:checkstock@db:5432/checkstock
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
     ports:
       - "8005:8005"
     depends_on:
