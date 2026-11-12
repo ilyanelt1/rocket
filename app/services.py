@@ -45,13 +45,19 @@ def _record(db: Session, kind: str, status: str, product_id: int, qty: int,
     db.flush()
     return op
 
-def _run(db: Session, action):
+def _run(db: Session, action, key: str | None = None):
     try:
         result = action()
         db.commit()
         return result
     except Exception:
         db.rollback()
+        # A concurrent request with the same key may have committed while this
+        # transaction waited for its row lock or hit the unique constraint.
+        if key:
+            existing = _existing(db, key)
+            if existing:
+                return existing
         raise
 
 def receipt(db: Session, product_id: int, warehouse_id: int, qty: int, key: str | None = None):
@@ -63,7 +69,7 @@ def receipt(db: Session, product_id: int, warehouse_id: int, qty: int, key: str 
         b = _balance(db, product_id, warehouse_id)
         b.physical_qty += qty
         return _record(db, "RECEIPT", "DONE", product_id, qty, destination=warehouse_id, key=key)
-    return _run(db, action)
+    return _run(db, action, key)
 
 def reserve_fbs(db: Session, product_id: int, warehouse_id: int, qty: int, key: str | None = None):
     def action():
