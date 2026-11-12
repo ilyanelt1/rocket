@@ -31,10 +31,24 @@ def test_admin_actions_and_stock_operations_are_audited(auth_client):
             "product_id": product.id,
             "warehouse_id": warehouse.id,
             "qty": 7,
+            "idempotency_key": "audit-receipt-1",
         },
         follow_redirects=False,
     )
     assert operation_response.status_code == 303
+
+    repeated_operation_response = client.post(
+        "/operations",
+        data={
+            "kind": "RECEIPT",
+            "product_id": product.id,
+            "warehouse_id": warehouse.id,
+            "qty": 7,
+            "idempotency_key": "audit-receipt-1",
+        },
+        follow_redirects=False,
+    )
+    assert repeated_operation_response.status_code == 303
 
     user_response = client.post(
         "/users",
@@ -53,6 +67,7 @@ def test_admin_actions_and_stock_operations_are_audited(auth_client):
     assert "auth.login" in actions
     assert "warehouse.create" in actions
     assert "stock.receipt" in actions
+    assert actions.count("stock.receipt") == 1
     assert "user.create" in actions
     assert all(event.actor_user_id is not None for event in events)
 
@@ -78,3 +93,69 @@ def test_audit_log_is_visible_only_to_admin(auth_client):
     )
     operator_dashboard = client.get("/")
     assert "Журнал действий" not in operator_dashboard.text
+
+
+
+def test_failed_login_is_audited_without_password(auth_client):
+    client, db = auth_client
+
+    response = client.post(
+        "/login",
+        data={"username": "unknown-user", "password": "never-store-this-password"},
+    )
+
+    assert response.status_code == 401
+    event = db.scalars(
+        select(AuditLog).where(AuditLog.action == "auth.login_failed")
+    ).one()
+    assert event.actor_user_id is None
+    assert event.details == {
+        "username": "unknown-user",
+        "reason": "invalid_credentials",
+    }
+    assert "password" not in str(event.details)
+
+
+def test_warehouse_rename_and_archive_are_audited(auth_client):
+    client, db = auth_client
+    client.post(
+        "/login",
+        data={"username": "admin", "password": "admin-password-123"},
+    )
+
+    create_response = client.post(
+        "/warehouses",
+        data={"name": "Склад до изменения"},
+        follow_redirects=False,
+    )
+    assert create_response.status_code == 303
+    warehouse = db.scalars(
+        select(Warehouse).where(Warehouse.name == "Склад до изменения")
+    ).one()
+
+    rename_response = client.post(
+        f"/warehouses/{warehouse.id}/rename",
+        data={"name": "Склад после изменения"},
+        follow_redirects=False,
+    )
+    assert rename_response.status_code == 303
+
+    archive_response = client.post(
+        f"/warehouses/{warehouse.id}/delete",
+        follow_redirects=False,
+    )
+    assert archive_response.status_code == 303
+
+    rename_event = db.scalars(
+        select(AuditLog).where(AuditLog.action == "warehouse.rename")
+    ).one()
+    archive_event = db.scalars(
+        select(AuditLog).where(AuditLog.action == "warehouse.archive")
+    ).one()
+
+    assert rename_event.details == {
+        "old_name": "Склад до изменения",
+        "new_name": "Склад после изменения",
+    }
+    assert archive_event.details["name"] == "Склад после изменения"
+    assert "archived_at" in archive_event.details
