@@ -3,11 +3,15 @@ import os
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
-from app.db import Base
-from app.models import Product, StockBalance, Warehouse
+from app.auth import hash_password
+from app.db import Base, get_db
+from app.main import app
+from app.models import Product, StockBalance, User, Warehouse
 
 
 @pytest.fixture
@@ -63,3 +67,45 @@ def ids(db):
         "north": db.query(Warehouse).filter_by(name="Север").one().id,
         "south": db.query(Warehouse).filter_by(name="Юг").one().id,
     }
+
+
+
+@pytest.fixture
+def auth_client():
+    test_engine = create_engine(
+        "sqlite+pysqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(test_engine)
+    test_session_factory = sessionmaker(
+        bind=test_engine, autoflush=False, expire_on_commit=False
+    )
+    db = test_session_factory()
+    db.add_all(
+        [
+            User(
+                username="admin",
+                password_hash=hash_password("admin-password-123"),
+                role="admin",
+            ),
+            User(
+                username="operator",
+                password_hash=hash_password("operator-password-123"),
+                role="operator",
+            ),
+        ]
+    )
+    db.commit()
+
+    def override_get_db():
+        yield db
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as client:
+        yield client, db
+
+    app.dependency_overrides.clear()
+    db.close()
+    Base.metadata.drop_all(test_engine)
+    test_engine.dispose()
