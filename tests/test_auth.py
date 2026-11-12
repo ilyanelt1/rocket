@@ -251,3 +251,30 @@ def test_last_admin_protection_allows_change_when_another_admin_exists(auth_clie
     assert deactivate.status_code == 303
     assert first_admin.is_active is False
     assert second_admin.is_active is True
+
+
+
+def test_operator_cannot_change_roles_or_account_status(auth_client):
+    client, _ = auth_client
+    client.post(
+        "/login",
+        data={"username": "operator", "password": "operator-password-123"},
+    )
+
+    role_response = client.post(
+        "/users/1/role",
+        data={"role": "operator"},
+        follow_redirects=False,
+    )
+    deactivate_response = client.post(
+        "/users/1/deactivate",
+        follow_redirects=False,
+    )
+    activate_response = client.post(
+        "/users/1/activate",
+        follow_redirects=False,
+    )
+
+    assert role_response.status_code == 403
+    assert deactivate_response.status_code == 403
+    assert activate_response.status_code == 403
