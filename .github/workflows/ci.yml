@@ -64,7 +64,7 @@ jobs:
         run: docker compose up --build -d --wait --wait-timeout 120
 
       - name: Run HTTP smoke tests
-        run: python scripts/smoke_test.py
+        run: python scripts/smoke.py
 
       - name: Show container logs on failure
         if: failure()
