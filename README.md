@@ -2,15 +2,33 @@
 
 CheckStock — отдельный прототип ядра остатков и движений для будущего проекта Raketa. Здесь реализованы складские остатки и операции; интеграции с WB API, прогнозирования, закупок и сезонности нет.
 
-## Запуск
+## Требования
 
-Требования: Docker Desktop с Docker Compose.
+- Python 3.14.2 для локальной разработки.
+- Docker Desktop с Docker Compose для запуска всего приложения.
+- PostgreSQL 16 (поднимается через Docker Compose).
+
+## Локальная установка
+
+Windows PowerShell:
+
+```powershell
+py -3.14 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python --version
+python -m pip install --upgrade pip
+python -m pip install -r requirements-dev.txt
+```
+
+Проверь, что команда `python --version` выводит Python 3.14.2. Если установлен другой patch-релиз Python 3.14, установи именно 3.14.2 и повтори создание виртуального окружения.
+
+## Запуск через Docker
 
 ```bash
 docker compose up --build
 ```
 
-После старта приложение доступно по адресу http://localhost:8000. Контейнер приложения ждёт готовности PostgreSQL 16, создаёт таблицы и запускает воспроизводимый seed перед Uvicorn. Seed не перезаписывает уже существующие остатки и операции, поэтому повторный запуск не сбрасывает рабочие данные.
+После старта приложение доступно по адресу http://localhost:8000. Контейнер приложения использует Python 3.14.2, ждёт готовности PostgreSQL 16, создаёт таблицы и запускает воспроизводимый seed перед Uvicorn. Seed не перезаписывает уже существующие остатки и операции, поэтому повторный запуск не сбрасывает рабочие данные.
 
 Остановка: `docker compose down`. Для полного сброса БД вместе с volume: `docker compose down -v` (удалит все данные).
 
@@ -26,29 +44,29 @@ Seed создаёт товары и два ФФ — «Север» и «Юг»:
 
 Seed запускается автоматически при старте контейнера. Вручную: `docker compose exec web python -m app.seed`.
 
-## Тесты
+## Тесты и проверки качества
 
-Для запуска локально установите зависимости и настройте `DATABASE_URL`:
+Unit-тесты используют SQLite in-memory для быстрого изолированного прогона бизнес-правил. SQLite не реализует PostgreSQL `SELECT FOR UPDATE`, поэтому эти тесты не подтверждают конкурентное поведение блокировок.
 
-```bash
-python -m venv .venv
-# Windows PowerShell: .venv\Scripts\Activate.ps1
-# Linux/macOS: source .venv/bin/activate
-pip install -r requirements-dev.txt
-pytest
+Запуск локально:
+
+```powershell
+python -m compileall -q app tests
+ruff format --check app tests
+ruff check app tests
+python -m pytest -q
 ```
 
-Текущие unit-тесты используют SQLite in-memory для быстрого изолированного прогона бизнес-правил. SQLite не реализует PostgreSQL `SELECT FOR UPDATE`, поэтому эти тесты не подтверждают конкурентное поведение блокировок. Для проверки транзакций и блокировок используйте PostgreSQL 16: запустите сервис БД через Compose и задайте тестам `DATABASE_URL=postgresql+psycopg://checkstock:checkstock@localhost:5432/checkstock`. Перед этим создайте отдельную тестовую БД и используйте её вместо рабочей. В реальном окружении списания выполняются с row-level lock.
+Для проверки транзакций и блокировок требуется отдельный прогон на PostgreSQL 16 и отдельная тестовая база. Текущая фикстура unit-тестов намеренно создаёт SQLite engine независимо от `DATABASE_URL`; простая подмена переменной окружения не переключает эти тесты на PostgreSQL.
 
 ## CI — GitHub Actions
 
-GitHub Actions автоматически запускает проверки при push в `main`/`feature/**` и при создании pull request в `main`:
+GitHub Actions автоматически запускает проверки при push в `main`/`feature/**` и при создании pull request в `main`. CI использует Python 3.14.2 и выполняет:
 
 - `compileall` — проверка синтаксиса Python;
+- `ruff format --check` — проверка форматирования;
 - Ruff — статический анализ ошибок и подозрительных конструкций;
 - `pytest` — запуск unit-тестов бизнес-логики.
-
-Проверки выполняются на Python 3.12. Локально их можно повторить командами `python -m compileall -q app tests`, `ruff check app tests` и `pytest -q`.
 
 ## Что реализовано
 
