@@ -51,9 +51,7 @@ async def stock_error_handler(request: Request, exc: StockError):
 def dashboard(request: Request, db: Session = Depends(get_db)):
     products = db.scalars(select(Product).order_by(Product.sku)).all()
     warehouses = db.scalars(
-        select(Warehouse)
-        .where(Warehouse.deleted_at.is_(None))
-        .order_by(Warehouse.name)
+        select(Warehouse).where(Warehouse.deleted_at.is_(None)).order_by(Warehouse.name)
     ).all()
     archived = db.scalars(
         select(Warehouse)
