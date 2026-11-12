@@ -12,9 +12,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
+from .audit import record_audit_event
 from .auth import get_current_user, require_roles
 from .db import Base, engine, get_db
-from .models import Operation, Product, StockBalance, User, Warehouse
+from .models import AuditLog, Operation, Product, StockBalance, User, Warehouse
 from .services import (
     StockError,
     accept_movement,
@@ -109,11 +110,19 @@ def login(
         )
     request.session.clear()
     request.session["user_id"] = user.id
+    record_audit_event(db, user.id, "auth.login", "user", user.id)
+    db.commit()
     return RedirectResponse("/", status_code=303)
 
 
 @app.post("/logout")
-def logout(request: Request):
+def logout(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    record_audit_event(db, user.id, "auth.logout", "user", user.id)
+    db.commit()
     request.session.clear()
     return RedirectResponse("/login", status_code=303)
 
@@ -150,6 +159,12 @@ def dashboard(
         product.id: f"{product.sku} — {product.name}" for product in products
     }
     users = db.scalars(select(User).order_by(User.username)).all()
+    audit_logs = (
+        db.scalars(select(AuditLog).order_by(AuditLog.created_at.desc()).limit(100)).all()
+        if user.role == "admin"
+        else []
+    )
+    user_names = {account.id: account.username for account in users}
 
     return templates.TemplateResponse(
         request,
@@ -158,6 +173,8 @@ def dashboard(
             "request": request,
             "user": user,
             "users": users,
+            "audit_logs": audit_logs,
+            "user_names": user_names,
             "products": products,
             "warehouses": warehouses,
             "archived": archived,
@@ -180,7 +197,13 @@ def add_warehouse(
     cleaned_name = name.strip()
     if not cleaned_name:
         raise HTTPException(422, "Название склада не может быть пустым")
-    db.add(Warehouse(name=cleaned_name))
+    warehouse = Warehouse(name=cleaned_name)
+    db.add(warehouse)
+    db.flush()
+    record_audit_event(
+        db, user.id, "warehouse.create", "warehouse", warehouse.id,
+        {"name": warehouse.name},
+    )
     db.commit()
     return RedirectResponse("/", status_code=303)
 
@@ -199,6 +222,10 @@ def rename_warehouse(
     if not cleaned_name:
         raise HTTPException(422, "Название склада не может быть пустым")
     warehouse.name = cleaned_name
+    record_audit_event(
+        db, user.id, "warehouse.rename", "warehouse", warehouse.id,
+        {"name": cleaned_name},
+    )
     db.commit()
     return RedirectResponse("/", status_code=303)
 
@@ -213,6 +240,10 @@ def delete_warehouse(
     if not warehouse:
         raise HTTPException(404, "Склад не найден")
     warehouse.deleted_at = datetime.now(timezone.utc)
+    record_audit_event(
+        db, user.id, "warehouse.archive", "warehouse", warehouse.id,
+        {"name": warehouse.name},
+    )
     db.commit()
     return RedirectResponse("/", status_code=303)
 
@@ -233,12 +264,16 @@ def create_user(
     if role not in {"admin", "warehouse_manager", "operator"}:
         raise HTTPException(422, "Неизвестная роль")
     try:
-        db.add(
-            User(
-                username=cleaned_username,
-                password_hash=hash_password(password),
-                role=role,
-            )
+        account = User(
+            username=cleaned_username,
+            password_hash=hash_password(password),
+            role=role,
+        )
+        db.add(account)
+        db.flush()
+        record_audit_event(
+            db, user.id, "user.create", "user", account.id,
+            {"username": account.username, "role": account.role},
         )
         db.commit()
     except IntegrityError as exc:
@@ -265,19 +300,35 @@ def create_operation(
 ):
     try:
         if kind == "RECEIPT":
-            receipt(db, product_id, warehouse_id, qty, idempotency_key)
+            receipt(
+                db, product_id, warehouse_id, qty, idempotency_key,
+                actor_user_id=user.id,
+            )
         elif kind == "FBS_RESERVE":
-            reserve_fbs(db, product_id, warehouse_id, qty, idempotency_key)
+            reserve_fbs(
+                db, product_id, warehouse_id, qty, idempotency_key,
+                actor_user_id=user.id,
+            )
         elif kind == "FBS_CANCEL":
-            cancel_fbs(db, reserve_id, idempotency_key)
+            cancel_fbs(
+                db, reserve_id, idempotency_key, actor_user_id=user.id
+            )
         elif kind == "FBS_SHIP":
-            ship_fbs(db, reserve_id, idempotency_key)
+            ship_fbs(db, reserve_id, idempotency_key, actor_user_id=user.id)
         elif kind == "TRANSFER":
-            transfer(db, product_id, warehouse_id, destination_id, qty, idempotency_key)
+            transfer(
+                db, product_id, warehouse_id, destination_id, qty, idempotency_key,
+                actor_user_id=user.id,
+            )
         elif kind == "FBO_SEND":
-            fbo_send(db, product_id, warehouse_id, qty, idempotency_key)
+            fbo_send(
+                db, product_id, warehouse_id, qty, idempotency_key,
+                actor_user_id=user.id,
+            )
         elif kind == "ACCEPT":
-            accept_movement(db, operation_id, idempotency_key)
+            accept_movement(
+                db, operation_id, idempotency_key, actor_user_id=user.id
+            )
         else:
             raise StockError("Неизвестный тип операции.")
     except (StockError, TypeError) as exc:
