@@ -18,6 +18,7 @@ py -3.14 -m venv .venv
 python --version
 python -m pip install --upgrade pip
 python -m pip install -r requirements-dev.txt
+pre-commit install
 ```
 
 Проверь, что команда `python --version` выводит Python 3.14.2. Если установлен другой patch-релиз Python 3.14, установи именно 3.14.2 и повтори создание виртуального окружения.
@@ -64,9 +65,8 @@ Unit-тесты используют SQLite in-memory для быстрого и
 Запуск локально:
 
 ```powershell
-python -m compileall -q app tests
-ruff format --check app tests
-ruff check app tests
+pre-commit run --all-files
+python -m compileall -q app tests scripts
 python -m pytest -q
 ```
 
@@ -74,12 +74,12 @@ python -m pytest -q
 
 ## CI — GitHub Actions
 
-GitHub Actions автоматически запускает проверки при push в `main`/`feature/**` и при создании pull request в `main`. CI использует Python 3.14.2 и выполняет:
+GitHub Actions автоматически запускает проверки при push в `main`/`feature/**` и при создании pull request в `main`. CI использует Python 3.14.2 и разделён на два последовательных job:
 
-- `compileall` — проверка синтаксиса Python;
-- `ruff format --check` — проверка форматирования;
-- Ruff — статический анализ ошибок и подозрительных конструкций;
-- `pytest` — запуск unit-тестов бизнес-логики.
+- **Pre-commit, lint and unit tests:** `pre-commit run --all-files` проверяет форматирование и Ruff, YAML/TOML, пробелы, конфликты слияния, приватные ключи и размер новых файлов; затем `compileall` и `pytest`.
+- **Docker Compose smoke test:** собирает образы, ждёт healthy-состояния PostgreSQL и web, запускает `scripts/smoke_test.py`. Скрипт проверяет редирект анонимного пользователя на вход, авторизацию администратора, наличие seed-товара, API сверки, выход и закрытие сессии.
+
+Локально установи git hook командой `pre-commit install`. Перед коммитом будут автоматически запускаться проверки изменённых файлов; полный прогон — `pre-commit run --all-files`.
 
 ## Что реализовано
 
