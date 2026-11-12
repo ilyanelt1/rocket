@@ -19,7 +19,7 @@ concurrency:
 jobs:
   lint-and-test:
     name: Lint and tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
