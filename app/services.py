@@ -165,7 +165,7 @@ def reserve_fbs(
             key=key,
         )
 
-    return _run(db, action)
+    return _run(db, action, key)
 
 
 def cancel_fbs(db: Session, reserve_id: int, key: str | None = None):
