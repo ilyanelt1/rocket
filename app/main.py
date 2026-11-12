@@ -184,7 +184,8 @@ def dashboard(
         .having(
             func.coalesce(
                 func.sum(StockBalance.physical_qty - StockBalance.reserved_qty), 0
-            ) <= 0
+            )
+            <= 0
         )
         .order_by(Product.sku)
     ).all()
