@@ -1,10 +1,14 @@
 from datetime import datetime, timezone
+
 from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
+
 from .db import Base
+
 
 def utcnow():
     return datetime.now(timezone.utc)
+
 
 class Product(Base):
     __tablename__ = "products"
@@ -12,11 +16,15 @@ class Product(Base):
     sku: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(200))
 
+
 class Warehouse(Base):
     __tablename__ = "warehouses"
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(120), unique=True)
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
 
 class StockBalance(Base):
     __tablename__ = "stock_balances"
@@ -31,17 +39,30 @@ class StockBalance(Base):
     def available_qty(self) -> int:
         return self.physical_qty - self.reserved_qty
 
+
 class Operation(Base):
     __tablename__ = "operations"
     id: Mapped[int] = mapped_column(primary_key=True)
     type: Mapped[str] = mapped_column(String(32), index=True)
     status: Mapped[str] = mapped_column(String(24), index=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
-    source_warehouse_id: Mapped[int | None] = mapped_column(ForeignKey("warehouses.id"), nullable=True)
-    destination_warehouse_id: Mapped[int | None] = mapped_column(ForeignKey("warehouses.id"), nullable=True)
+    source_warehouse_id: Mapped[int | None] = mapped_column(
+        ForeignKey("warehouses.id"), nullable=True
+    )
+    destination_warehouse_id: Mapped[int | None] = mapped_column(
+        ForeignKey("warehouses.id"), nullable=True
+    )
     qty: Mapped[int] = mapped_column(Integer)
-    idempotency_key: Mapped[str | None] = mapped_column(String(120), unique=True, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(120), unique=True, nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
+    confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    related_operation_id: Mapped[int | None] = mapped_column(ForeignKey("operations.id"), nullable=True)
+    related_operation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("operations.id"), nullable=True
+    )
