@@ -275,9 +275,12 @@ def operation_history(
         )
 
     base_query = select(Operation).join(Product).where(*filters)
-    total = db.scalar(
-        select(func.count()).select_from(Operation).join(Product).where(*filters)
-    ) or 0
+    total = (
+        db.scalar(
+            select(func.count()).select_from(Operation).join(Product).where(*filters)
+        )
+        or 0
+    )
     page_size = 50
     pages = max(1, (total + page_size - 1) // page_size)
     if page > pages and total:
