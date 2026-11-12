@@ -1,5 +1,8 @@
 from app.auth import hash_password, verify_password
+
+import pytest
 from app.models import User
+
 
 def test_password_hash_is_salted_and_verified():
     first = hash_password("correct-horse-battery")
