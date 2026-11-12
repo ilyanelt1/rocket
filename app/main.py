@@ -142,12 +142,14 @@ def dashboard(
     product_names = {
         product.id: f"{product.sku} — {product.name}" for product in products
     }
+    users = db.scalars(select(User).order_by(User.username)).all()
 
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
             "user": user,
+            "users": users,
             "products": products,
             "warehouses": warehouses,
             "archived": archived,
@@ -206,6 +208,38 @@ def delete_warehouse(
     db.commit()
     return RedirectResponse("/", status_code=303)
 
+
+@app.post("/users")
+def create_user(
+    username: str = Form(...),
+    password: str = Form(...),
+    role: str = Form(...),
+    user: User = Depends(require_roles("admin")),
+    db: Session = Depends(get_db),
+):
+    from .auth import hash_password
+
+    cleaned_username = username.strip()
+    if len(cleaned_username) < 3 or len(cleaned_username) > 80:
+        raise HTTPException(422, "Логин должен содержать от 3 до 80 символов")
+    if role not in {"admin", "warehouse_manager", "operator"}:
+        raise HTTPException(422, "Неизвестная роль")
+    try:
+        db.add(
+            User(
+                username=cleaned_username,
+                password_hash=hash_password(password),
+                role=role,
+            )
+        )
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(409, "Пользователь с таким логином уже существует") from exc
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(422, str(exc)) from exc
+    return RedirectResponse("/", status_code=303)
 
 @app.post("/operations")
 def create_operation(
