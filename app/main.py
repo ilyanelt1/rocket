@@ -160,7 +160,9 @@ def dashboard(
     }
     users = db.scalars(select(User).order_by(User.username)).all()
     audit_logs = (
-        db.scalars(select(AuditLog).order_by(AuditLog.created_at.desc()).limit(100)).all()
+        db.scalars(
+            select(AuditLog).order_by(AuditLog.created_at.desc()).limit(100)
+        ).all()
         if user.role == "admin"
         else []
     )
@@ -201,7 +203,11 @@ def add_warehouse(
     db.add(warehouse)
     db.flush()
     record_audit_event(
-        db, user.id, "warehouse.create", "warehouse", warehouse.id,
+        db,
+        user.id,
+        "warehouse.create",
+        "warehouse",
+        warehouse.id,
         {"name": warehouse.name},
     )
     db.commit()
@@ -223,7 +229,11 @@ def rename_warehouse(
         raise HTTPException(422, "Название склада не может быть пустым")
     warehouse.name = cleaned_name
     record_audit_event(
-        db, user.id, "warehouse.rename", "warehouse", warehouse.id,
+        db,
+        user.id,
+        "warehouse.rename",
+        "warehouse",
+        warehouse.id,
         {"name": cleaned_name},
     )
     db.commit()
@@ -241,7 +251,11 @@ def delete_warehouse(
         raise HTTPException(404, "Склад не найден")
     warehouse.deleted_at = datetime.now(timezone.utc)
     record_audit_event(
-        db, user.id, "warehouse.archive", "warehouse", warehouse.id,
+        db,
+        user.id,
+        "warehouse.archive",
+        "warehouse",
+        warehouse.id,
         {"name": warehouse.name},
     )
     db.commit()
@@ -272,7 +286,11 @@ def create_user(
         db.add(account)
         db.flush()
         record_audit_event(
-            db, user.id, "user.create", "user", account.id,
+            db,
+            user.id,
+            "user.create",
+            "user",
+            account.id,
             {"username": account.username, "role": account.role},
         )
         db.commit()
@@ -301,34 +319,47 @@ def create_operation(
     try:
         if kind == "RECEIPT":
             receipt(
-                db, product_id, warehouse_id, qty, idempotency_key,
+                db,
+                product_id,
+                warehouse_id,
+                qty,
+                idempotency_key,
                 actor_user_id=user.id,
             )
         elif kind == "FBS_RESERVE":
             reserve_fbs(
-                db, product_id, warehouse_id, qty, idempotency_key,
+                db,
+                product_id,
+                warehouse_id,
+                qty,
+                idempotency_key,
                 actor_user_id=user.id,
             )
         elif kind == "FBS_CANCEL":
-            cancel_fbs(
-                db, reserve_id, idempotency_key, actor_user_id=user.id
-            )
+            cancel_fbs(db, reserve_id, idempotency_key, actor_user_id=user.id)
         elif kind == "FBS_SHIP":
             ship_fbs(db, reserve_id, idempotency_key, actor_user_id=user.id)
         elif kind == "TRANSFER":
             transfer(
-                db, product_id, warehouse_id, destination_id, qty, idempotency_key,
+                db,
+                product_id,
+                warehouse_id,
+                destination_id,
+                qty,
+                idempotency_key,
                 actor_user_id=user.id,
             )
         elif kind == "FBO_SEND":
             fbo_send(
-                db, product_id, warehouse_id, qty, idempotency_key,
+                db,
+                product_id,
+                warehouse_id,
+                qty,
+                idempotency_key,
                 actor_user_id=user.id,
             )
         elif kind == "ACCEPT":
-            accept_movement(
-                db, operation_id, idempotency_key, actor_user_id=user.id
-            )
+            accept_movement(db, operation_id, idempotency_key, actor_user_id=user.id)
         else:
             raise StockError("Неизвестный тип операции.")
     except (StockError, TypeError) as exc:
