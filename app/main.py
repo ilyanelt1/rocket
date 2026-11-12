@@ -400,9 +400,14 @@ def operation_history(
         ).all()
         actor_names = {entity_id: username for entity_id, username in actor_rows}
 
+    template_name = (
+        "history_results.html"
+        if request.headers.get("HX-Request") == "true"
+        else "history.html"
+    )
     return templates.TemplateResponse(
         request,
-        "history.html",
+        template_name,
         {
             "request": request,
             "user": user,

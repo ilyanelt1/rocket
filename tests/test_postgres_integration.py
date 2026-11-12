@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.db import Base
 from app.models import Operation, Product, StockBalance, Warehouse
-from app.services import StockError, accept_movement, transfer
+from app.services import StockError, accept_movement, receipt, transfer
 
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
@@ -141,3 +141,91 @@ def test_postgres_concurrent_confirmation_with_different_keys_applies_once(
 
     assert sorted(results) == ["accepted", "rejected"]
     _assert_received_once(session_factory, ids)
+
+
+def test_postgres_concurrent_transfers_cannot_oversell_source(postgres_db):
+    _, session_factory, ids = postgres_db
+    barrier = Barrier(2)
+
+    def move(key):
+        with session_factory() as db:
+            barrier.wait(timeout=10)
+            try:
+                transfer(
+                    db,
+                    ids["product"],
+                    ids["north"],
+                    ids["south"],
+                    7,
+                    key,
+                )
+            except StockError:
+                return "rejected"
+            return "accepted"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(move, ("pg-oversell-a", "pg-oversell-b")))
+
+    assert sorted(results) == ["accepted", "rejected"]
+    with session_factory() as db:
+        source_qty = db.scalar(
+            select(StockBalance.physical_qty).where(
+                StockBalance.product_id == ids["product"],
+                StockBalance.warehouse_id == ids["north"],
+            )
+        )
+        destination_qty = db.scalar(
+            select(StockBalance.physical_qty).where(
+                StockBalance.product_id == ids["product"],
+                StockBalance.warehouse_id == ids["south"],
+            )
+        )
+        movement_count = db.scalar(
+            select(func.count())
+            .select_from(Operation)
+            .where(Operation.type == "TRANSFER")
+        )
+
+    assert source_qty == 3
+    assert destination_qty == 7
+    assert movement_count == 1
+
+
+def test_postgres_concurrent_receipt_with_same_key_applies_once(postgres_db):
+    _, session_factory, ids = postgres_db
+    barrier = Barrier(2)
+
+    def add_receipt(_):
+        with session_factory() as db:
+            barrier.wait(timeout=10)
+            operation = receipt(
+                db,
+                ids["product"],
+                ids["north"],
+                5,
+                "pg-same-receipt-key",
+            )
+            return operation.id
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(add_receipt, range(2)))
+
+    assert results[0] == results[1]
+    with session_factory() as db:
+        source_qty = db.scalar(
+            select(StockBalance.physical_qty).where(
+                StockBalance.product_id == ids["product"],
+                StockBalance.warehouse_id == ids["north"],
+            )
+        )
+        receipt_count = db.scalar(
+            select(func.count())
+            .select_from(Operation)
+            .where(
+                Operation.type == "RECEIPT",
+                Operation.idempotency_key == "pg-same-receipt-key",
+            )
+        )
+
+    assert source_qty == 15
+    assert receipt_count == 1

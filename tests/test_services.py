@@ -129,3 +129,52 @@ def test_reconciliation_counts_stock_and_goods_in_transit(db, ids):
     assert result["physical"] == 13
     assert result["in_transit"] == 3
     assert result["total"] == 16
+
+    movement = db.scalar(select(Operation).where(Operation.type == "TRANSFER"))
+    accept_movement(db, movement.id)
+    accepted = reconcile(db, ids["product"])
+    assert accepted["physical"] == 16
+    assert accepted["in_transit"] == 0
+    assert accepted["total"] == 16
+
+
+def test_reconciliation_keeps_fbs_reservation_and_cancellation_neutral(db, ids):
+    reserve = reserve_fbs(db, ids["product"], ids["north"], 4)
+    reserved = reconcile(db, ids["product"])
+    assert reserved["physical"] == 16
+    assert reserved["in_transit"] == 0
+    assert reserved["total"] == 16
+
+    cancel_fbs(db, reserve.id)
+    cancelled = reconcile(db, ids["product"])
+    assert cancelled["physical"] == 16
+    assert cancelled["in_transit"] == 0
+    assert cancelled["total"] == 16
+
+
+def test_reconciliation_counts_fbs_shipment_until_customer_delivery(db, ids):
+    reserve = reserve_fbs(db, ids["product"], ids["north"], 4)
+    ship_fbs(db, reserve.id)
+
+    result = reconcile(db, ids["product"])
+    assert result["physical"] == 12
+    assert result["in_transit"] == 4
+    assert result["fbo_accepted"] == 0
+    assert result["total"] == 16
+
+
+def test_reconciliation_counts_fbo_in_transit_then_accepted(db, ids):
+    operation = fbo_send(db, ids["product"], ids["north"], 2)
+
+    in_transit = reconcile(db, ids["product"])
+    assert in_transit["physical"] == 14
+    assert in_transit["in_transit"] == 2
+    assert in_transit["fbo_accepted"] == 0
+    assert in_transit["total"] == 16
+
+    accept_movement(db, operation.id)
+    accepted = reconcile(db, ids["product"])
+    assert accepted["physical"] == 14
+    assert accepted["in_transit"] == 0
+    assert accepted["fbo_accepted"] == 2
+    assert accepted["total"] == 16
