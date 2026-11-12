@@ -484,9 +484,12 @@ def export_operation_history(
             row[10] or "",
         ]
         safe_values = [
-            f"'{value}"
-            if isinstance(value, str) and value.startswith(("=", "+", "-", "@", "\t", "\r"))
-            else value
+            (
+                f"'{value}"
+                if isinstance(value, str)
+                and value.startswith(("=", "+", "-", "@", "\\t", "\\r"))
+                else value
+            )
             for value in values
         ]
         writer.writerow(safe_values)
