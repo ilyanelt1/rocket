@@ -19,6 +19,8 @@ def main():
     env.setdefault("ADMIN_USERNAME", "precommit-admin")
     env.setdefault("ADMIN_PASSWORD", "precommit-admin-password-123")
     env.setdefault("COOKIE_SECURE", "false")
+
+    env["POSTGRES_HOST_PORT"] = "55433"
     env["WEB_PORT"] = "18005"
     env["BASE_URL"] = "http://127.0.0.1:18005"
 

@@ -23,9 +23,17 @@ pytestmark = pytest.mark.skipif(
 def postgres_db():
     if not TEST_DATABASE_URL:
         pytest.skip("TEST_DATABASE_URL is not configured")
-    engine = create_engine(TEST_DATABASE_URL, pool_pre_ping=True)
+
+    engine = create_engine(
+        TEST_DATABASE_URL,
+        pool_pre_ping=True,
+        connect_args={"connect_timeout": 5},
+    )
+
     Base.metadata.drop_all(engine)
+
     Base.metadata.create_all(engine)
+
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
 
     with session_factory.begin() as db:
@@ -34,6 +42,7 @@ def postgres_db():
         south = Warehouse(name="PG Юг")
         db.add_all([product, north, south])
         db.flush()
+
         db.add_all(
             [
                 StockBalance(
@@ -50,6 +59,7 @@ def postgres_db():
                 ),
             ]
         )
+
         ids = {
             "product": product.id,
             "north": north.id,
