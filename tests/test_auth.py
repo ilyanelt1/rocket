@@ -106,7 +106,6 @@ def test_admin_can_create_user_with_role(auth_client):
     assert verify_password("manager-password-123", manager.password_hash)
 
 
-
 def test_admin_can_change_user_role_and_audit(auth_client):
     client, db = auth_client
     client.post(
