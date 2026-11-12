@@ -5,7 +5,7 @@ CheckStock — отдельный прототип ядра остатков и 
 ## Требования
 
 - Python 3.14.2 для локальной разработки.
-- Docker Desktop с Docker Compose для запуска всего приложения.
+- Docker Desktop с Docker Compose для запуска всего приложения и pre-commit smoke test.
 - PostgreSQL 16 (поднимается через Docker Compose).
 
 ## Локальная установка
@@ -70,16 +70,18 @@ python -m compileall -q app tests scripts
 python -m pytest -q
 ```
 
+В pre-commit включён Docker Compose smoke test. Он запускает отдельный стек проекта `checkstock-precommit` на порту 18005, дожидается healthy-состояния контейнеров, выполняет `scripts/smoke.py`, а затем удаляет тестовые контейнеры и volume. Основное приложение на порту 8005 и его volume не затрагиваются. Для коммита Docker Desktop должен быть запущен. Если Docker недоступен или smoke test падает, коммит блокируется.
+
 Для проверки транзакций и блокировок требуется отдельный прогон на PostgreSQL 16 и отдельная тестовая база. Текущая фикстура unit-тестов намеренно создаёт SQLite engine независимо от `DATABASE_URL`; простая подмена переменной окружения не переключает эти тесты на PostgreSQL.
 
 ## CI — GitHub Actions
 
 GitHub Actions автоматически запускает проверки при push в `main`/`feature/**` и при создании pull request в `main`. CI использует Python 3.14.2 и разделён на два последовательных job:
 
-- **Pre-commit, lint and unit tests:** `pre-commit run --all-files` проверяет форматирование и Ruff, YAML/TOML, пробелы, конфликты слияния, приватные ключи и размер новых файлов; затем `compileall` и `pytest`.
-- **Docker Compose smoke test:** собирает образы, ждёт healthy-состояния PostgreSQL и web, запускает `scripts/smoke.py`. Скрипт проверяет редирект анонимного пользователя на вход, авторизацию администратора, наличие seed-товара, API сверки, выход и закрытие сессии.
+- **Pre-commit, lint and unit tests:** `pre-commit run --all-files` проверяет форматирование и Ruff, YAML/TOML, пробелы, конфликты слияния, приватные ключи, размер новых файлов и Docker Compose smoke test; затем `compileall` и `pytest`.
+- **Docker Compose smoke test:** собирает образы, ждёт healthy-состояния PostgreSQL и web, запускает `scripts/smoke.py`.
 
-Локально установи git hook командой `pre-commit install`. Перед коммитом будут автоматически запускаться проверки изменённых файлов; полный прогон — `pre-commit run --all-files`.
+Локально установи git hook командой `pre-commit install`. Перед каждым коммитом будут автоматически запускаться проверки; полный прогон — `pre-commit run --all-files`.
 
 ## Что реализовано
 
