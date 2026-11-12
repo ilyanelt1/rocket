@@ -4,3 +4,4 @@ SQLAlchemy==2.0.57
 psycopg[binary]==3.3.8
 Jinja2==3.1.6
 python-multipart==0.0.20
+itsdangerous==2.2.0
