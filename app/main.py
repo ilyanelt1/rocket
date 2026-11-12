@@ -61,6 +61,16 @@ app.add_middleware(
 templates = Jinja2Templates(directory="templates")
 
 
+def _lock_active_admins(db: Session) -> list[User]:
+    return db.scalars(
+        select(User)
+        .where(User.role == "admin", User.is_active.is_(True))
+        .order_by(User.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).all()
+
+
 @app.exception_handler(StockError)
 async def stock_error_handler(request: Request, exc: StockError):
     return templates.TemplateResponse(
@@ -301,6 +311,125 @@ def create_user(
         db.rollback()
         raise HTTPException(422, str(exc)) from exc
     return RedirectResponse("/", status_code=303)
+
+
+@app.post("/users/{user_id}/role")
+def update_user_role(
+    user_id: int,
+    role: str = Form(...),
+    user: User = Depends(require_roles("admin")),
+    db: Session = Depends(get_db),
+):
+    allowed_roles = {"admin", "warehouse_manager", "operator"}
+    if role not in allowed_roles:
+        raise HTTPException(422, "Неизвестная роль")
+    if user_id == user.id:
+        raise HTTPException(409, "Нельзя изменить собственную роль")
+
+    active_admins = _lock_active_admins(db)
+    if not any(account.id == user.id for account in active_admins):
+        raise HTTPException(403, "Недостаточно прав для выполнения действия")
+    account = db.scalar(
+        select(User)
+        .where(User.id == user_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if account is None:
+        raise HTTPException(404, "Пользователь не найден")
+    if account.role == role:
+        return RedirectResponse("/#users", status_code=303)
+    if (
+        account.is_active
+        and account.role == "admin"
+        and role != "admin"
+        and len(active_admins) <= 1
+    ):
+        raise HTTPException(
+            409, "Нельзя понизить роль последнего активного администратора"
+        )
+
+    old_role = account.role
+    account.role = role
+    record_audit_event(
+        db,
+        user.id,
+        "user.role_change",
+        "user",
+        account.id,
+        {"username": account.username, "old_role": old_role, "new_role": role},
+    )
+    db.commit()
+    return RedirectResponse("/#users", status_code=303)
+
+
+@app.post("/users/{user_id}/deactivate")
+def deactivate_user(
+    user_id: int,
+    user: User = Depends(require_roles("admin")),
+    db: Session = Depends(get_db),
+):
+    if user_id == user.id:
+        raise HTTPException(409, "Нельзя заблокировать собственную учётную запись")
+    active_admins = _lock_active_admins(db)
+    if not any(account.id == user.id for account in active_admins):
+        raise HTTPException(403, "Недостаточно прав для выполнения действия")
+    account = db.scalar(
+        select(User)
+        .where(User.id == user_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if account is None:
+        raise HTTPException(404, "Пользователь не найден")
+    if not account.is_active:
+        return RedirectResponse("/#users", status_code=303)
+    if account.role == "admin" and len(active_admins) <= 1:
+        raise HTTPException(
+            409, "Нельзя заблокировать последнего активного администратора"
+        )
+
+    account.is_active = False
+    record_audit_event(
+        db,
+        user.id,
+        "user.deactivate",
+        "user",
+        account.id,
+        {"username": account.username, "role": account.role},
+    )
+    db.commit()
+    return RedirectResponse("/#users", status_code=303)
+
+
+@app.post("/users/{user_id}/activate")
+def activate_user(
+    user_id: int,
+    user: User = Depends(require_roles("admin")),
+    db: Session = Depends(get_db),
+):
+    account = db.scalar(
+        select(User)
+        .where(User.id == user_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if account is None:
+        raise HTTPException(404, "Пользователь не найден")
+    if account.is_active:
+        return RedirectResponse("/#users", status_code=303)
+
+    account.is_active = True
+    record_audit_event(
+        db,
+        user.id,
+        "user.activate",
+        "user",
+        account.id,
+        {"username": account.username, "role": account.role},
+    )
+    db.commit()
+    return RedirectResponse("/#users", status_code=303)
 
 
 @app.post("/operations")
