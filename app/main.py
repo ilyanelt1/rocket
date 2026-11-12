@@ -120,9 +120,7 @@ def dashboard(
 ):
     products = db.scalars(select(Product).order_by(Product.sku)).all()
     warehouses = db.scalars(
-        select(Warehouse)
-        .where(Warehouse.deleted_at.is_(None))
-        .order_by(Warehouse.name)
+        select(Warehouse).where(Warehouse.deleted_at.is_(None)).order_by(Warehouse.name)
     ).all()
     archived = db.scalars(
         select(Warehouse)
@@ -267,9 +265,7 @@ def create_operation(
         elif kind == "FBS_SHIP":
             ship_fbs(db, reserve_id, idempotency_key)
         elif kind == "TRANSFER":
-            transfer(
-                db, product_id, warehouse_id, destination_id, qty, idempotency_key
-            )
+            transfer(db, product_id, warehouse_id, destination_id, qty, idempotency_key)
         elif kind == "FBO_SEND":
             fbo_send(db, product_id, warehouse_id, qty, idempotency_key)
         elif kind == "ACCEPT":
