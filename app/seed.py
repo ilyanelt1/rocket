@@ -21,8 +21,7 @@ def seed():
 
     with SessionLocal.begin() as db:
         products_by_sku = {
-            product.sku: product
-            for product in db.scalars(select(Product)).all()
+            product.sku: product for product in db.scalars(select(Product)).all()
         }
         warehouses_by_name = {
             warehouse.name: warehouse
