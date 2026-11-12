@@ -252,7 +252,6 @@ def test_last_admin_protection_allows_change_when_another_admin_exists(auth_clie
     assert second_admin.is_active is True
 
 
-
 def test_operator_cannot_change_roles_or_account_status(auth_client):
     client, _ = auth_client
     client.post(
