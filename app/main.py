@@ -155,6 +155,40 @@ def dashboard(
         .order_by(Warehouse.name)
     ).all()
     balances = db.scalars(select(StockBalance)).all()
+    stock_totals = db.execute(
+        select(
+            func.coalesce(func.sum(StockBalance.physical_qty), 0),
+            func.coalesce(func.sum(StockBalance.reserved_qty), 0),
+        )
+        .join(Warehouse, Warehouse.id == StockBalance.warehouse_id)
+        .where(Warehouse.deleted_at.is_(None))
+    ).one()
+    out_of_stock_products = db.execute(
+        select(
+            Product.id,
+            Product.sku,
+            Product.name,
+            func.coalesce(
+                func.sum(StockBalance.physical_qty - StockBalance.reserved_qty), 0
+            ).label("available_qty"),
+        )
+        .outerjoin(StockBalance, StockBalance.product_id == Product.id)
+        .outerjoin(Warehouse, Warehouse.id == StockBalance.warehouse_id)
+        .where(
+            or_(
+                Warehouse.deleted_at.is_(None),
+                StockBalance.id.is_(None),
+            )
+        )
+        .group_by(Product.id)
+        .having(
+            func.coalesce(
+                func.sum(StockBalance.physical_qty - StockBalance.reserved_qty), 0
+            )
+            <= 0
+        )
+        .order_by(Product.sku)
+    ).all()
     operations = db.scalars(
         select(Operation).order_by(Operation.created_at.desc()).limit(100)
     ).all()
@@ -193,6 +227,15 @@ def dashboard(
             "warehouses": warehouses,
             "archived": archived,
             "balances": balances,
+            "stock_summary": {
+                "product_count": len(products),
+                "warehouse_count": len(warehouses),
+                "physical_qty": stock_totals[0],
+                "reserved_qty": stock_totals[1],
+                "available_qty": stock_totals[0] - stock_totals[1],
+                "out_of_stock_count": len(out_of_stock_products),
+            },
+            "out_of_stock_products": out_of_stock_products,
             "operations": operations,
             "transit": transit,
             "names": names,

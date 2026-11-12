@@ -5,7 +5,25 @@
 <body><nav class="navbar navbar-dark mb-4"><div class="container"><span class="navbar-brand fw-bold">📦 CheckStock</span><div class="d-flex align-items-center gap-3"><span class="text-white-50">{{ user.username }} · {{ user.role }}</span><form method="post" action="/logout"><button class="btn btn-sm btn-outline-light">Выйти</button></form></div></div></nav>
 <main class="container pb-5">
 {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
-<ul class="nav nav-tabs mb-3"><li class="nav-item"><a class="nav-link active" href="#stock">Остатки</a></li>{% if user.role in ["admin", "warehouse_manager"] %}<li class="nav-item"><a class="nav-link" href="#warehouses">Склады</a></li>{% endif %}<li class="nav-item"><a class="nav-link" href="#operations">Операции</a></li><li class="nav-item"><a class="nav-link" href="/history">История</a></li>{% if user.role == "admin" %}<li class="nav-item"><a class="nav-link" href="#users">Пользователи</a></li><li class="nav-item"><a class="nav-link" href="#audit">Аудит</a></li>{% endif %}</ul>
+<ul class="nav nav-tabs mb-3"><li class="nav-item"><a class="nav-link active" href="#overview">Обзор</a></li><li class="nav-item"><a class="nav-link" href="#stock">Остатки</a></li>{% if user.role in ["admin", "warehouse_manager"] %}<li class="nav-item"><a class="nav-link" href="#warehouses">Склады</a></li>{% endif %}<li class="nav-item"><a class="nav-link" href="#operations">Операции</a></li><li class="nav-item"><a class="nav-link" href="/history">История</a></li>{% if user.role == "admin" %}<li class="nav-item"><a class="nav-link" href="#users">Пользователи</a></li><li class="nav-item"><a class="nav-link" href="#audit">Аудит</a></li>{% endif %}</ul>
+<section id="overview" class="mb-4">
+<h4>Сводка склада</h4>
+<div class="row g-3 mb-3">
+<div class="col-md-4 col-lg-2"><div class="card p-3 h-100"><div class="muted small">Товары</div><h3 class="mb-0">{{stock_summary.product_count}}</h3></div></div>
+<div class="col-md-4 col-lg-2"><div class="card p-3 h-100"><div class="muted small">Активные ФФ</div><h3 class="mb-0">{{stock_summary.warehouse_count}}</h3></div></div>
+<div class="col-md-4 col-lg-2"><div class="card p-3 h-100"><div class="muted small">Физический остаток</div><h3 class="mb-0">{{stock_summary.physical_qty}}</h3></div></div>
+<div class="col-md-4 col-lg-2"><div class="card p-3 h-100"><div class="muted small">Резерв FBS</div><h3 class="mb-0">{{stock_summary.reserved_qty}}</h3></div></div>
+<div class="col-md-4 col-lg-2"><div class="card p-3 h-100"><div class="muted small">Доступно</div><h3 class="mb-0">{{stock_summary.available_qty}}</h3></div></div>
+<div class="col-md-4 col-lg-2"><div class="card p-3 h-100"><div class="muted small">Без доступного остатка</div><h3 class="mb-0">{{stock_summary.out_of_stock_count}}</h3></div></div>
+</div>
+<div class="card p-3">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2"><strong>Товары без доступного остатка</strong><a class="btn btn-sm btn-outline-primary" href="/history">История операций</a></div>
+<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>SKU</th><th>Товар</th><th>Доступно</th></tr></thead><tbody>
+{% for item in out_of_stock_products %}<tr><td>{{item.sku}}</td><td>{{item.name}}</td><td><span class="badge text-bg-danger">{{item.available_qty}}</span></td></tr>{% else %}<tr><td colspan="3" class="text-center muted">Все товары имеют доступный остаток</td></tr>{% endfor %}
+</tbody></table></div>
+<div class="muted small mt-2">Учитываются только активные склады. Товары без остатков также отображаются в списке.</div>
+</div>
+</section>
 <section id="stock" class="mb-4"><h4>Остатки по складам</h4><div class="card p-3"><div class="table-responsive"><table class="table table-hover"><thead><tr><th>SKU</th><th>Товар</th><th>ФФ</th><th>Физически</th><th>Доступно</th><th>Резерв FBS</th></tr></thead><tbody>
 {% for b in balances %}{% set p = products|selectattr("id","equalto",b.product_id)|first %}{% set w = (warehouses|list + archived|list)|selectattr("id","equalto",b.warehouse_id)|first %}<tr><td>{{p.sku}}</td><td>{{p.name}}</td><td>{{w.name}}{% if w.deleted_at %} <span class="badge text-bg-secondary">Архив</span>{% endif %}</td><td>{{b.physical_qty}}</td><td>{{b.available_qty}}</td><td>{{b.reserved_qty}}</td></tr>{% else %}<tr><td colspan="6" class="text-center muted">Остатков пока нет</td></tr>{% endfor %}</tbody></table></div></div>
 <div class="row g-3 mt-1">{% for label, types in [("В пути между ФФ",["TRANSFER"]),("FBO в пути",["FBO_SEND"]),("FBS к клиенту",["FBS_SHIP"])] %}<div class="col-md-4"><div class="card p-3"><div class="muted small">{{label}}</div><h4>{{transit|selectattr("type","in",types)|sum(attribute="qty")}}</h4></div></div>{% endfor %}</div>
