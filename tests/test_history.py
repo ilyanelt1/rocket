@@ -105,12 +105,14 @@ def test_history_search_and_date_filters(auth_client):
     product, _, _, operations = _seed_history(db)
     _login(client)
 
+    date_from = (datetime.now(timezone.utc).date() - timedelta(days=1)).isoformat()
+    date_to = datetime.now(timezone.utc).date().isoformat()
     response = client.get(
         "/history",
         params={
             "q": "Исторический товар",
-            "date_from": (datetime.now(timezone.utc).date() - timedelta(days=1)).isoformat(),
-            "date_to": datetime.now(timezone.utc).date().isoformat(),
+            "date_from": date_from,
+            "date_to": date_to,
         },
     )
 
