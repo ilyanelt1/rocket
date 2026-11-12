@@ -61,6 +61,16 @@ app.add_middleware(
 templates = Jinja2Templates(directory="templates")
 
 
+def _lock_active_admins(db: Session) -> list[User]:
+    return db.scalars(
+        select(User)
+        .where(User.role == "admin", User.is_active.is_(True))
+        .order_by(User.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).all()
+
+
 @app.exception_handler(StockError)
 async def stock_error_handler(request: Request, exc: StockError):
     return templates.TemplateResponse(
@@ -316,13 +326,15 @@ def update_user_role(
     if user_id == user.id:
         raise HTTPException(409, "Нельзя изменить собственную роль")
 
-    active_admins = db.scalars(
+    active_admins = _lock_active_admins(db)
+    if not any(account.id == user.id for account in active_admins):
+        raise HTTPException(403, "Недостаточно прав для выполнения действия")
+    account = db.scalar(
         select(User)
-        .where(User.role == "admin", User.is_active.is_(True))
-        .order_by(User.id)
+        .where(User.id == user_id)
         .with_for_update()
-    ).all()
-    account = db.scalar(select(User).where(User.id == user_id).with_for_update())
+        .execution_options(populate_existing=True)
+    )
     if account is None:
         raise HTTPException(404, "Пользователь не найден")
     if account.role == role:
