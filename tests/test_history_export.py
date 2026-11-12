@@ -98,7 +98,7 @@ def test_history_export_applies_search_filter_and_prevents_formula_injection(
     assert response.status_code == 200
     content = response.content.decode("utf-8-sig")
     assert str(operation.id) in content
-    assert "'=HYPERLINK(" not in content
+    assert "'=HYPERLINK(" in content
     assert "обычная операция" not in content
 
 
