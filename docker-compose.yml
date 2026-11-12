@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: checkstock
+      POSTGRES_USER: checkstock
+      POSTGRES_PASSWORD: checkstock
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U checkstock -d checkstock"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  web:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://checkstock:checkstock@db:5432/checkstock
+    ports:
+      - "8005:8005"
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  postgres_data:
