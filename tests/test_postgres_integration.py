@@ -21,6 +21,8 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture
 def postgres_db():
+    if not TEST_DATABASE_URL:
+        pytest.skip("TEST_DATABASE_URL is not configured")
     engine = create_engine(TEST_DATABASE_URL, pool_pre_ping=True)
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
@@ -95,14 +97,14 @@ def test_postgres_concurrent_confirmation_with_same_key_is_idempotent(postgres_d
     movement_id = _create_movement(session_factory, ids)
     barrier = Barrier(2)
 
-    def confirm():
+    def confirm(_):
         with session_factory() as db:
             barrier.wait(timeout=10)
             operation = accept_movement(db, movement_id, "pg-same-confirm-key")
             return operation.id
 
     with ThreadPoolExecutor(max_workers=2) as executor:
-        results = list(executor.map(lambda _: confirm(), range(2)))
+        results = list(executor.map(confirm, range(2)))
 
     assert results[0] == results[1]
     _assert_received_once(session_factory, ids)
