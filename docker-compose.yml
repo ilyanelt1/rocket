@@ -1,6 +1,9 @@
+
 services:
   db:
     image: postgres:16
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-checkstock}
       POSTGRES_USER: ${POSTGRES_USER:-checkstock}
@@ -35,5 +38,6 @@ services:
       timeout: 5s
       retries: 12
       start_period: 15s
+
 volumes:
   postgres_data:

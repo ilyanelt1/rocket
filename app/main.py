@@ -109,17 +109,8 @@ def _lock_active_admins(db: Session) -> list[User]:
 async def stock_error_handler(request: Request, exc: StockError):
     return templates.TemplateResponse(
         request,
-        "index.html",
-        context={
-            "request": request,
-            "error": str(exc),
-            "products": [],
-            "warehouses": [],
-            "balances": [],
-            "archived": [],
-            "operations": [],
-            "transit": [],
-        },
+        "error.html",
+        {"error": str(exc)},
         status_code=409,
     )
 
@@ -243,11 +234,11 @@ def dashboard(
     operations = db.scalars(
         select(Operation).order_by(Operation.created_at.desc()).limit(100)
     ).all()
-    transit = [
-        operation
-        for operation in operations
-        if operation.status in ("IN_TRANSIT", "SHIPPED")
-    ]
+    transit = db.scalars(
+        select(Operation)
+        .where(Operation.status.in_(("IN_TRANSIT", "SHIPPED")))
+        .order_by(Operation.created_at.desc(), Operation.id.desc())
+    ).all()
     names = {
         warehouse.id: warehouse.name + (" (архив)" if warehouse.deleted_at else "")
         for warehouse in db.scalars(select(Warehouse)).all()
@@ -918,8 +909,8 @@ def create_operation(
             accept_movement(db, operation_id, idempotency_key, actor_user_id=user.id)
         else:
             raise StockError("Неизвестный тип операции.")
-    except (StockError, TypeError) as exc:
-        raise HTTPException(409, str(exc)) from exc
+    except TypeError as exc:
+        raise HTTPException(409, "Некорректные параметры операции.") from exc
     return RedirectResponse("/", status_code=303)
 
 
