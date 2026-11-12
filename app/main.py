@@ -470,7 +470,9 @@ def export_operation_history(
     for row in rows:
         values = [
             row[0],
-            row[1].astimezone(timezone.utc).isoformat(),
+            (row[1].replace(tzinfo=timezone.utc) if row[1].tzinfo is None else row[1])
+            .astimezone(timezone.utc)
+            .isoformat(),
             row[2],
             row[3],
             row[4],
