@@ -168,9 +168,9 @@ def dashboard(
     active_stock_by_product = (
         select(
             StockBalance.product_id.label("product_id"),
-            func.sum(
-                StockBalance.physical_qty - StockBalance.reserved_qty
-            ).label("available_qty"),
+            func.sum(StockBalance.physical_qty - StockBalance.reserved_qty).label(
+                "available_qty"
+            ),
         )
         .join(Warehouse, Warehouse.id == StockBalance.warehouse_id)
         .where(Warehouse.deleted_at.is_(None))
