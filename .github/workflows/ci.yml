@@ -66,6 +66,18 @@ jobs:
       - name: Run HTTP smoke tests
         run: python scripts/smoke.py
 
+      - name: Create PostgreSQL backup
+        run: python scripts/db_backup.py backup --output "$RUNNER_TEMP/checkstock-ci.dump"
+
+      - name: Verify backup by restoring into a temporary database
+        run: python scripts/db_backup.py verify "$RUNNER_TEMP/checkstock-ci.dump"
+
+      - name: Restore verified backup into the disposable CI database
+        run: python scripts/db_backup.py restore "$RUNNER_TEMP/checkstock-ci.dump" --yes
+
+      - name: Re-run HTTP smoke tests after restore
+        run: python scripts/smoke.py
+
       - name: Show container logs on failure
         if: failure()
         run: docker compose logs --no-color

@@ -9,8 +9,8 @@ from datetime import date, datetime, time, timedelta, timezone
 from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, or_, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func, or_, select, text
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -63,6 +63,36 @@ app.add_middleware(
     same_site="lax",
 )
 templates = Jinja2Templates(directory="templates")
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
+    )
+    return response
+
+
+@app.get("/health/live", include_in_schema=False)
+def health_live():
+    return {"status": "ok"}
+
+
+@app.get("/health/ready", include_in_schema=False)
+def health_ready(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        return Response(
+            content='{"status":"error","database":"unavailable"}',
+            status_code=503,
+            media_type="application/json",
+        )
+    return {"status": "ok", "database": "ok"}
 
 
 def _lock_active_admins(db: Session) -> list[User]:
