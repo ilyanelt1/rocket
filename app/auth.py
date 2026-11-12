@@ -1,0 +1,66 @@
+import hashlib
+import hmac
+import secrets
+from collections.abc import Callable
+
+from fastapi import Depends, HTTPException, Request, status
+from sqlalchemy.orm import Session
+
+from .db import get_db
+from .models import User
+
+_ITERATIONS = 600_000
+
+
+def hash_password(password: str) -> str:
+    if len(password) < 12:
+        raise ValueError("Пароль должен содержать не менее 12 символов")
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, _ITERATIONS)
+    return "pbkdf2_sha256${}${}${}".format(
+        _ITERATIONS, salt.hex(), digest.hex()
+    )
+
+
+def verify_password(password: str, encoded: str) -> bool:
+    try:
+        algorithm, iterations, salt_hex, digest_hex = encoded.split("$", 3)
+        if algorithm != "pbkdf2_sha256":
+            return False
+        actual = hashlib.pbkdf2_hmac(
+            "sha256", password.encode(), bytes.fromhex(salt_hex), int(iterations)
+        )
+        return hmac.compare_digest(actual, bytes.fromhex(digest_hex))
+    except (ValueError, TypeError):
+        return False
+
+
+def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+    user_id = request.session.get("user_id")
+    if not isinstance(user_id, int):
+        raise HTTPException(
+            status_code=status.HTTP_303_SEE_OTHER,
+            detail="Требуется авторизация",
+            headers={"Location": "/login"},
+        )
+    user = db.get(User, user_id)
+    if user is None or not user.is_active:
+        request.session.clear()
+        raise HTTPException(
+            status_code=status.HTTP_303_SEE_OTHER,
+            detail="Требуется авторизация",
+            headers={"Location": "/login"},
+        )
+    return user
+
+
+def require_roles(*roles: str) -> Callable:
+    def role_dependency(user: User = Depends(get_current_user)) -> User:
+        if user.role not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Недостаточно прав для выполнения действия",
+            )
+        return user
+
+    return role_dependency
