@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy import select
 
-from app.models import Operation, StockBalance, Warehouse
+from app.models import AuditLog, Operation, StockBalance, User, Warehouse
 from app.services import (
     StockError,
     accept_movement,
@@ -121,6 +121,34 @@ def test_idempotency_does_not_double_confirm_or_apply(db, ids):
     repeated = accept_movement(db, movement.id, "accept-key")
     assert accepted.id == repeated.id
     assert bal(db, ids["product"], ids["south"]).physical_qty == 8
+
+
+def test_idempotent_retry_does_not_duplicate_audit_event(db, ids):
+    user = User(
+        username="audit-operator",
+        password_hash="test-hash",
+        role="operator",
+    )
+    db.add(user)
+    db.commit()
+
+    first = receipt(
+        db, ids["product"], ids["north"], 2, "audited-receipt-key",
+        actor_user_id=user.id,
+    )
+    second = receipt(
+        db, ids["product"], ids["north"], 2, "audited-receipt-key",
+        actor_user_id=user.id,
+    )
+
+    events = db.scalars(
+        select(AuditLog).where(
+            AuditLog.entity_type == "operation",
+            AuditLog.entity_id == first.id,
+        )
+    ).all()
+    assert first.id == second.id
+    assert len(events) == 1
 
 
 def test_reconciliation_counts_stock_and_goods_in_transit(db, ids):
