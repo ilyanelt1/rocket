@@ -194,7 +194,9 @@ def test_history_shows_latest_audit_actor_deterministically(auth_client):
     response = client.get("/history")
 
     assert response.status_code == 200
-    row = response.text.split(f"<tr><td>{operations[0].id}</td>", 1)[1].split("</tr>", 1)[0]
+    row = response.text.split(f"<tr><td>{operations[0].id}</td>", 1)[1].split(
+        "</tr>", 1
+    )[0]
     assert "operator" in row
     assert "admin" not in row
 
