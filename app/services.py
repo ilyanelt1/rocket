@@ -104,7 +104,9 @@ def _record(
         idempotency_key=key,
         note=note,
         related_operation_id=related,
-        confirmed_at=(datetime.now(timezone.utc) if status in {"DONE", "SHIPPED"} else None),
+        confirmed_at=(
+            datetime.now(timezone.utc) if status in {"DONE", "SHIPPED"} else None
+        ),
     )
     db.add(operation)
     db.flush()
