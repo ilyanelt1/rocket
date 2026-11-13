@@ -356,3 +356,18 @@ def test_session_secret_returns_configured_stable_value(monkeypatch):
     monkeypatch.setenv("SESSION_SECRET", secret)
 
     assert _get_session_secret() == secret
+
+
+def test_dummy_password_verification_uses_pbkdf2_work(monkeypatch):
+    import app.auth as auth
+
+    hashes = []
+    monkeypatch.setattr(
+        auth,
+        "verify_password",
+        lambda password, encoded: hashes.append(encoded) or False,
+    )
+
+    assert auth.verify_dummy_password("arbitrary-password") is False
+    assert len(hashes) == 1
+    assert hashes[0].startswith("pbkdf2_sha256$600000$")
