@@ -68,9 +68,7 @@ def _matches_request(operation: Operation, expected: dict) -> bool:
 
 def _validate_idempotent_retry(operation: Operation, expected: dict) -> Operation:
     if not _matches_request(operation, expected):
-        raise StockError(
-            "Ключ идемпотентности уже использован для другой операции."
-        )
+        raise StockError("Ключ идемпотентности уже использован для другой операции.")
     return operation
 
 
