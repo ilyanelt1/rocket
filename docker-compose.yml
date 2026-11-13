@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-checkstock}
       POSTGRES_USER: ${POSTGRES_USER:-checkstock}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-checkstock}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -19,7 +19,7 @@ services:
     build: .
     command: ["python", "-m", "app.seed"]
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-checkstock}:${POSTGRES_PASSWORD:-checkstock}@db:5432/${POSTGRES_DB:-checkstock}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-checkstock}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-checkstock}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
     depends_on:
