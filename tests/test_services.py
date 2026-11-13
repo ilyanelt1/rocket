@@ -166,7 +166,10 @@ def test_idempotency_rejects_reused_key_with_different_quantity(db, ids):
         receipt(db, ids["product"], ids["north"], 3, "same-key")
 
     assert bal(db, ids["product"], ids["north"]).physical_qty == 12
-    assert db.scalar(select(Operation).where(Operation.idempotency_key == "same-key")).qty == 2
+    operation = db.scalar(
+        select(Operation).where(Operation.idempotency_key == "same-key")
+    )
+    assert operation.qty == 2
 
 
 def test_idempotency_rejects_reused_key_with_different_product(db, ids):
