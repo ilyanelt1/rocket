@@ -10,10 +10,11 @@ from .db import get_db
 from .models import User
 
 _ITERATIONS = 600_000
+MIN_PASSWORD_LENGTH = 12
 
 
 def hash_password(password: str) -> str:
-    if len(password) < 12:
+    if len(password) < MIN_PASSWORD_LENGTH:
         raise ValueError("Пароль должен содержать не менее 12 символов")
     salt = secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, _ITERATIONS)
@@ -29,25 +30,35 @@ def verify_password(password: str, encoded: str) -> bool:
             "sha256", password.encode(), bytes.fromhex(salt_hex), int(iterations)
         )
         return hmac.compare_digest(actual, bytes.fromhex(digest_hex))
-    except ValueError, TypeError:
+    except (ValueError, TypeError):
         return False
 
 
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     user_id = request.session.get("user_id")
     if not isinstance(user_id, int):
+        api_request = request.url.path.startswith("/api/")
         raise HTTPException(
-            status_code=status.HTTP_303_SEE_OTHER,
+            status_code=(
+                status.HTTP_401_UNAUTHORIZED
+                if api_request
+                else status.HTTP_303_SEE_OTHER
+            ),
             detail="Требуется авторизация",
-            headers={"Location": "/login"},
+            headers={} if api_request else {"Location": "/login"},
         )
     user = db.get(User, user_id)
     if user is None or not user.is_active:
         request.session.clear()
+        api_request = request.url.path.startswith("/api/")
         raise HTTPException(
-            status_code=status.HTTP_303_SEE_OTHER,
+            status_code=(
+                status.HTTP_401_UNAUTHORIZED
+                if api_request
+                else status.HTTP_303_SEE_OTHER
+            ),
             detail="Требуется авторизация",
-            headers={"Location": "/login"},
+            headers={} if api_request else {"Location": "/login"},
         )
     return user
 
