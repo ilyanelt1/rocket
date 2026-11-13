@@ -30,35 +30,37 @@ def verify_password(password: str, encoded: str) -> bool:
             "sha256", password.encode(), bytes.fromhex(salt_hex), int(iterations)
         )
         return hmac.compare_digest(actual, bytes.fromhex(digest_hex))
-    except ValueError, TypeError:
+    except ValueError:
+        return False
+    except TypeError:
         return False
 
 
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     user_id = request.session.get("user_id")
     if not isinstance(user_id, int):
-        if request.url.path.startswith("/api/"):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Требуется авторизация",
-            )
+        api_request = request.url.path.startswith("/api/")
         raise HTTPException(
-            status_code=status.HTTP_303_SEE_OTHER,
+            status_code=(
+                status.HTTP_401_UNAUTHORIZED
+                if api_request
+                else status.HTTP_303_SEE_OTHER
+            ),
             detail="Требуется авторизация",
-            headers={"Location": "/login"},
+            headers={} if api_request else {"Location": "/login"},
         )
     user = db.get(User, user_id)
     if user is None or not user.is_active:
         request.session.clear()
-        if request.url.path.startswith("/api/"):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Требуется авторизация",
-            )
+        api_request = request.url.path.startswith("/api/")
         raise HTTPException(
-            status_code=status.HTTP_303_SEE_OTHER,
+            status_code=(
+                status.HTTP_401_UNAUTHORIZED
+                if api_request
+                else status.HTTP_303_SEE_OTHER
+            ),
             detail="Требуется авторизация",
-            headers={"Location": "/login"},
+            headers={} if api_request else {"Location": "/login"},
         )
     return user
 

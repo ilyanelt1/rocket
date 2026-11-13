@@ -81,6 +81,7 @@ def _record(
     )
     db.add(operation)
     db.flush()
+    db.info.setdefault("_new_operation_ids", set()).add(operation.id)
     return operation
 
 
@@ -98,35 +99,31 @@ def _run(
             return existing
 
         result = action()
-        if actor_user_id is not None:
-            existing_audit = db.scalar(
-                select(AuditLog.id).where(
-                    AuditLog.entity_type == "operation",
-                    AuditLog.entity_id == result.id,
-                    AuditLog.action == f"stock.{result.type.lower()}",
+        new_operation_ids = db.info.setdefault("_new_operation_ids", set())
+        is_new_operation = result.id in new_operation_ids
+        new_operation_ids.discard(result.id)
+        if actor_user_id is not None and is_new_operation:
+            db.add(
+                AuditLog(
+                    actor_user_id=actor_user_id,
+                    action=f"stock.{result.type.lower()}",
+                    entity_type="operation",
+                    entity_id=result.id,
+                    details={
+                        "operation_type": result.type,
+                        "status": result.status,
+                        "product_id": result.product_id,
+                        "quantity": result.qty,
+                        "source_warehouse_id": result.source_warehouse_id,
+                        "destination_warehouse_id": result.destination_warehouse_id,
+                    },
                 )
             )
-            if existing_audit is None:
-                db.add(
-                    AuditLog(
-                        actor_user_id=actor_user_id,
-                        action=f"stock.{result.type.lower()}",
-                        entity_type="operation",
-                        entity_id=result.id,
-                        details={
-                            "operation_type": result.type,
-                            "status": result.status,
-                            "product_id": result.product_id,
-                            "quantity": result.qty,
-                            "source_warehouse_id": result.source_warehouse_id,
-                            "destination_warehouse_id": result.destination_warehouse_id,
-                        },
-                    )
-                )
         db.commit()
         return result
     except Exception:
         db.rollback()
+        db.info.pop("_new_operation_ids", None)
         # A concurrent request with the same key may have committed while this
         # transaction waited for its row lock or hit the unique constraint.
         if key:

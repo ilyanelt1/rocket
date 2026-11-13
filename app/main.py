@@ -853,21 +853,14 @@ def create_operation(
     user: User = Depends(require_roles("admin", "warehouse_manager", "operator")),
     db: Session = Depends(get_db),
 ):
-    required_parameters = {
-        "RECEIPT": (warehouse_id,),
-        "FBS_RESERVE": (warehouse_id,),
-        "FBS_CANCEL": (reserve_id,),
-        "FBS_SHIP": (reserve_id,),
-        "TRANSFER": (warehouse_id, destination_id),
-        "FBO_SEND": (warehouse_id,),
-        "ACCEPT": (operation_id,),
-    }
-    if kind not in required_parameters:
-        raise StockError("Неизвестный тип операции.")
-    if any(value is None for value in required_parameters[kind]):
-        raise HTTPException(422, "Не заполнены обязательные параметры операции.")
-    if kind in {"RECEIPT", "FBS_RESERVE", "TRANSFER", "FBO_SEND"} and qty <= 0:
-        raise HTTPException(422, "Количество должно быть больше нуля.")
+    if kind in {"RECEIPT", "FBS_RESERVE", "FBO_SEND"} and warehouse_id is None:
+        raise HTTPException(422, "Для этой операции необходимо выбрать склад.")
+    if kind == "TRANSFER" and (warehouse_id is None or destination_id is None):
+        raise HTTPException(422, "Для перемещения необходимо выбрать оба склада.")
+    if kind in {"FBS_CANCEL", "FBS_SHIP"} and reserve_id is None:
+        raise HTTPException(422, "Необходимо указать ID резерва.")
+    if kind == "ACCEPT" and operation_id is None:
+        raise HTTPException(422, "Необходимо указать ID операции в пути.")
 
     if kind == "RECEIPT":
         receipt(
@@ -912,7 +905,8 @@ def create_operation(
         )
     elif kind == "ACCEPT":
         accept_movement(db, operation_id, idempotency_key, actor_user_id=user.id)
-
+    else:
+        raise StockError("Неизвестный тип операции.")
     return RedirectResponse("/", status_code=303)
 
 

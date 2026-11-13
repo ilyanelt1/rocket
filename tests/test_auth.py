@@ -28,25 +28,6 @@ def test_api_returns_json_401_for_anonymous_user(auth_client):
     assert "location" not in response.headers
 
 
-def test_operation_requires_warehouse_for_receipt(auth_client):
-    client, _ = auth_client
-    client.post(
-        "/login",
-        data={"username": "admin", "password": "admin-password-123"},
-    )
-
-    response = client.post(
-        "/operations",
-        data={"kind": "RECEIPT", "product_id": 1, "qty": 2},
-        follow_redirects=False,
-    )
-
-    assert response.status_code == 422
-    assert response.json() == {
-        "detail": "Не заполнены обязательные параметры операции."
-    }
-
-
 def test_dashboard_redirects_anonymous_user_to_login(auth_client):
     client, _ = auth_client
 
@@ -305,3 +286,30 @@ def test_operator_cannot_change_roles_or_account_status(auth_client):
     assert role_response.status_code == 403
     assert deactivate_response.status_code == 403
     assert activate_response.status_code == 403
+
+
+def test_api_reconcile_returns_json_401_for_anonymous_user(auth_client):
+    client, _ = auth_client
+
+    response = client.get("/api/reconcile/1", follow_redirects=False)
+
+    assert response.status_code == 401
+    assert response.headers.get("location") is None
+    assert response.json()["detail"] == "Требуется авторизация"
+
+
+def test_operation_form_validates_required_warehouse(auth_client):
+    client, _ = auth_client
+    client.post(
+        "/login",
+        data={"username": "admin", "password": "admin-password-123"},
+    )
+
+    response = client.post(
+        "/operations",
+        data={"kind": "RECEIPT", "product_id": 1, "qty": 1},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 422
+    assert "необходимо выбрать склад" in response.text

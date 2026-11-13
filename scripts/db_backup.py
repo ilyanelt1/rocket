@@ -10,6 +10,32 @@ ROOT = Path(__file__).resolve().parents[1]
 COMPOSE = ["docker", "compose"]
 
 
+def ensure_db_running() -> None:
+    try:
+        result = subprocess.run(
+            COMPOSE + ["ps", "--status", "running", "--services"],
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise RuntimeError(
+            "Docker Compose is unavailable. Start Docker Desktop and retry."
+        ) from exc
+
+    if result.returncode != 0:
+        detail = result.stderr.strip() or "Docker Compose could not inspect services"
+        raise RuntimeError(f"Cannot inspect the Compose project: {detail}")
+
+    if "db" not in result.stdout.splitlines():
+        raise RuntimeError(
+            "The PostgreSQL container is not running. Start it with "
+            "'docker compose up -d db' and retry."
+        )
+
+
 def compose_exec(*args, input_data=None, capture_output=False):
     return subprocess.run(
         COMPOSE + ["exec", "-T", "db", *args],
@@ -36,7 +62,7 @@ def ensure_database_running() -> None:
 
 
 def database_settings():
-    ensure_database_running()
+    ensure_db_running()
     database = compose_exec("printenv", "POSTGRES_DB", capture_output=True)
     username = compose_exec("printenv", "POSTGRES_USER", capture_output=True)
     return database.stdout.decode().strip(), username.stdout.decode().strip()
@@ -109,6 +135,13 @@ def restore(archive: Path, confirmed: bool) -> None:
     )
     backup(safety_backup)
     database, username = database_settings()
+    safety_backup = (
+        ROOT
+        / "backups"
+        / f"pre_restore_{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}_{uuid4().hex[:8]}.dump"
+    )
+    backup(safety_backup)
+    print(f"Safety backup created before restore: {safety_backup}")
     compose_exec(
         "pg_restore",
         "--clean",
