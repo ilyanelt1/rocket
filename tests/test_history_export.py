@@ -104,6 +104,45 @@ def test_history_export_applies_search_filter_and_prevents_formula_injection(
     assert "обычная операция" not in content
 
 
+def test_history_export_accepts_empty_optional_filter_values(auth_client):
+    client, db = auth_client
+    operation, _, _ = _seed_export_data(db)
+    _login(client)
+
+    response = client.get(
+        "/history/export",
+        params={
+            "q": "",
+            "product_id": "",
+            "operation_type": "",
+            "status": "",
+            "warehouse_id": "",
+            "date_from": "",
+            "date_to": "",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    content = response.content.decode("utf-8-sig")
+    assert str(operation.id) in content
+    assert "CSV-101" in content
+
+
+def test_history_page_accepts_empty_date_filter_values(auth_client):
+    client, db = auth_client
+    _seed_export_data(db)
+    _login(client)
+
+    response = client.get(
+        "/history",
+        params={"date_from": "", "date_to": ""},
+    )
+
+    assert response.status_code == 200
+    assert "История операций" in response.text
+
+
 def test_history_export_rejects_invalid_filters(auth_client):
     client, _ = auth_client
     _login(client)

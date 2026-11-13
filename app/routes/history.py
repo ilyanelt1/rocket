@@ -25,6 +25,7 @@ def _empty_string_to_none(value):
 
 
 OptionalQueryInt = Annotated[int | None, BeforeValidator(_empty_string_to_none)]
+OptionalQueryDate = Annotated[date | None, BeforeValidator(_empty_string_to_none)]
 
 
 ALLOWED_OPERATION_TYPES = {
@@ -102,8 +103,8 @@ def operation_history(
     operation_type: str = "",
     status: str = "",
     warehouse_id: OptionalQueryInt = None,
-    date_from: date | None = None,
-    date_to: date | None = None,
+    date_from: OptionalQueryDate = None,
+    date_to: OptionalQueryDate = None,
     page: int = Query(1, ge=1),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -226,8 +227,8 @@ def export_operation_history(
     operation_type: str = "",
     status: str = "",
     warehouse_id: OptionalQueryInt = None,
-    date_from: date | None = None,
-    date_to: date | None = None,
+    date_from: OptionalQueryDate = None,
+    date_to: OptionalQueryDate = None,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
