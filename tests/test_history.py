@@ -163,7 +163,7 @@ def test_history_and_export_use_the_same_filters(auth_client):
 
 def test_history_export_escapes_formula_after_leading_whitespace(auth_client):
     client, db = auth_client
-    product, _, _, operations = _seed_history(db)
+    _, _, _, operations = _seed_history(db)
     operations[0].note = " =1+1"
     db.commit()
     _login(client)
