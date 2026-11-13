@@ -11,7 +11,12 @@ from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from .audit import record_audit_event
-from .auth import get_current_user, require_roles, verify_password, verify_dummy_password
+from .auth import (
+    get_current_user,
+    require_roles,
+    verify_password,
+    verify_dummy_password,
+)
 from .db import get_db
 from .models import AuditLog, Operation, Product, StockBalance, User, Warehouse
 from .routes.history import router as history_router
