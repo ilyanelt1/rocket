@@ -403,14 +403,27 @@ def reconcile(db: Session, product_id: int):
             )
         ).all()
     )
-    transit = sum(
+
+    transfer_transit = sum(
         db.scalars(
             select(Operation.qty).where(
                 Operation.product_id == product_id,
-                Operation.status.in_(("IN_TRANSIT", "SHIPPED")),
+                Operation.type.in_(("TRANSFER", "FBO_SEND")),
+                Operation.status == "IN_TRANSIT",
             )
         ).all()
     )
+
+    fbs_transit = sum(
+        db.scalars(
+            select(Operation.qty).where(
+                Operation.product_id == product_id,
+                Operation.type == "FBS_SHIP",
+                Operation.status == "SHIPPED",
+            )
+        ).all()
+    )
+
     fbo_accepted = sum(
         db.scalars(
             select(Operation.qty).where(
@@ -420,6 +433,8 @@ def reconcile(db: Session, product_id: int):
             )
         ).all()
     )
+
+    transit = transfer_transit + fbs_transit
 
     return {
         "product_id": product_id,

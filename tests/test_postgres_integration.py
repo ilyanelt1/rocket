@@ -187,8 +187,19 @@ def test_postgres_concurrent_transfers_cannot_oversell_source(postgres_db):
         )
 
     assert source_qty == 3
-    assert destination_qty == 7
+    assert destination_qty == 0
     assert movement_count == 1
+
+    with session_factory() as db:
+        transit_qty = db.scalar(
+            select(func.sum(Operation.qty)).where(
+                Operation.type == "TRANSFER",
+                Operation.status == "IN_TRANSIT",
+            )
+        )
+
+    assert transit_qty == 7
+    assert source_qty + transit_qty == 10
 
 
 def test_postgres_concurrent_receipt_with_same_key_applies_once(postgres_db):
