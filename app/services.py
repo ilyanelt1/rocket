@@ -81,6 +81,7 @@ def _record(
     )
     db.add(operation)
     db.flush()
+    db.info.setdefault("_new_operation_ids", set()).add(operation.id)
     return operation
 
 
@@ -92,7 +93,10 @@ def _run(
 ):
     try:
         result = action()
-        if actor_user_id is not None:
+        new_operation_ids = db.info.setdefault("_new_operation_ids", set())
+        is_new_operation = result.id in new_operation_ids
+        new_operation_ids.discard(result.id)
+        if actor_user_id is not None and is_new_operation:
             db.add(
                 AuditLog(
                     actor_user_id=actor_user_id,
