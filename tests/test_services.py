@@ -181,13 +181,31 @@ def test_reconciliation_counts_fbo_in_transit_then_accepted(db, ids):
 
 
 def test_idempotent_retry_does_not_duplicate_audit_event(db, ids):
-    from app.models import AuditLog
+    from app.models import AuditLog, User
+
+    actor = User(
+        username="audit-actor",
+        password_hash="test-hash",
+        role="admin",
+    )
+    db.add(actor)
+    db.flush()
 
     first = receipt(
-        db, ids["product"], ids["north"], 2, "audited-receipt-key", actor_user_id=1
+        db,
+        ids["product"],
+        ids["north"],
+        2,
+        "audited-receipt-key",
+        actor_user_id=actor.id,
     )
     second = receipt(
-        db, ids["product"], ids["north"], 2, "audited-receipt-key", actor_user_id=1
+        db,
+        ids["product"],
+        ids["north"],
+        2,
+        "audited-receipt-key",
+        actor_user_id=actor.id,
     )
 
     assert first.id == second.id
