@@ -5,6 +5,8 @@ import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date, datetime, time, timedelta, timezone
+from typing import Annotated
+from pydantic import BeforeValidator
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse, Response
@@ -30,6 +32,15 @@ from .services import (
     ship_fbs,
     transfer,
 )
+
+
+def empty_string_to_none(value):
+    if value == "":
+        return None
+    return value
+
+
+OptionalFormInt = Annotated[int | None, BeforeValidator(empty_string_to_none)]
 
 
 @asynccontextmanager
@@ -862,8 +873,8 @@ def create_operation(
     qty: int = Form(...),
     warehouse_id: int | None = Form(None),
     destination_id: int | None = Form(None),
-    reserve_id: int | None = Form(None),
-    operation_id: int | None = Form(None),
+    reserve_id: OptionalFormInt = Form(None),
+    operation_id: OptionalFormInt = Form(None),
     idempotency_key: str | None = Form(None),
     user: User = Depends(require_roles("admin", "warehouse_manager", "operator")),
     db: Session = Depends(get_db),
