@@ -1,3 +1,5 @@
+import csv
+import io
 from datetime import datetime, timedelta, timezone
 
 from app.models import AuditLog, Operation, Product, Warehouse
@@ -133,3 +135,76 @@ def test_history_rejects_invalid_date_range(auth_client):
     )
 
     assert response.status_code == 422
+
+
+def test_history_and_export_use_the_same_filters(auth_client):
+    client, db = auth_client
+    product, _, archived, operations = _seed_history(db)
+    _login(client)
+    params = {
+        "q": product.sku,
+        "operation_type": "TRANSFER",
+        "status": "IN_TRANSIT",
+        "warehouse_id": archived.id,
+    }
+
+    page = client.get("/history", params=params)
+    export = client.get("/history/export", params=params)
+
+    assert page.status_code == 200
+    assert export.status_code == 200
+    assert f"<tr><td>{operations[1].id}</td>" in page.text
+    exported_rows = list(
+        csv.reader(io.StringIO(export.text.lstrip("\ufeff")), delimiter=";")
+    )
+    exported_ids = {int(row[0]) for row in exported_rows[1:]}
+    assert exported_ids == {operations[1].id}
+
+
+def test_history_export_escapes_formula_after_leading_whitespace(auth_client):
+    client, db = auth_client
+    _, _, _, operations = _seed_history(db)
+    operations[0].note = " =1+1"
+    db.commit()
+    _login(client)
+
+    response = client.get("/history/export", params={"q": "1+1"})
+
+    assert response.status_code == 200
+    assert response.content.startswith(b"\xef\xbb\xbf")
+    assert "' =1+1" in response.text
+
+
+def test_history_shows_latest_audit_actor_deterministically(auth_client):
+    client, db = auth_client
+    _, _, _, operations = _seed_history(db)
+    db.add(
+        AuditLog(
+            actor_user_id=2,
+            action="stock.receipt",
+            entity_type="operation",
+            entity_id=operations[0].id,
+            details={"source": "newer event"},
+            created_at=datetime.now(timezone.utc) + timedelta(seconds=1),
+        )
+    )
+    db.commit()
+    _login(client)
+
+    response = client.get("/history")
+
+    assert response.status_code == 200
+    row = response.text.split(f"<tr><td>{operations[0].id}</td>", 1)[1].split(
+        "</tr>", 1
+    )[0]
+    assert "operator" in row
+    assert "admin" not in row
+
+
+def test_history_and_export_reject_invalid_date_range_consistently(auth_client):
+    client, _ = auth_client
+    _login(client)
+    params = {"date_from": "2026-11-12", "date_to": "2026-11-01"}
+
+    assert client.get("/history", params=params).status_code == 422
+    assert client.get("/history/export", params=params).status_code == 422

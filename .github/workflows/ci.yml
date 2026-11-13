@@ -89,8 +89,14 @@ jobs:
       - name: Verify backup by restoring into a temporary database
         run: python scripts/db_backup.py verify "$RUNNER_TEMP/checkstock-ci.dump"
 
+      - name: Stop web before restoring the disposable CI database
+        run: docker compose stop web
+
       - name: Restore verified backup into the disposable CI database
         run: python scripts/db_backup.py restore "$RUNNER_TEMP/checkstock-ci.dump" --yes
+
+      - name: Restart web after restore
+        run: docker compose up -d --wait web
 
       - name: Re-run HTTP smoke tests after restore
         run: python scripts/smoke.py

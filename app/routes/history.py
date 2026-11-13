@@ -4,53 +4,43 @@ from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from ..auth import get_current_user
 from ..db import get_db
 from ..models import AuditLog, Operation, Product, User, Warehouse
+from ..templating import templates
 
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 
-@router.get("/history")
-def operation_history(
-    request: Request,
-    q: str = "",
-    product_id: int | None = None,
-    operation_type: str = "",
-    status: str = "",
-    warehouse_id: int | None = None,
-    date_from: date | None = None,
-    date_to: date | None = None,
-    page: int = Query(1, ge=1),
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+ALLOWED_OPERATION_TYPES = {
+    "RECEIPT",
+    "TRANSFER",
+    "TRANSFER_RECEIVE",
+    "FBS_RESERVE",
+    "FBS_CANCEL",
+    "FBS_SHIP",
+    "FBO_SEND",
+    "FBO_ACCEPT",
+}
+ALLOWED_STATUSES = {"DONE", "IN_TRANSIT", "ACCEPTED", "CANCELLED", "SHIPPED"}
+
+
+def _build_filters(
+    q: str,
+    product_id: int | None,
+    operation_type: str,
+    status: str,
+    warehouse_id: int | None,
+    date_from: date | None,
+    date_to: date | None,
 ):
-    allowed_types = {
-        "RECEIPT",
-        "TRANSFER",
-        "TRANSFER_RECEIVE",
-        "FBS_RESERVE",
-        "FBS_CANCEL",
-        "FBS_SHIP",
-        "FBO_SEND",
-        "FBO_ACCEPT",
-    }
-    allowed_statuses = {
-        "DONE",
-        "IN_TRANSIT",
-        "ACCEPTED",
-        "CANCELLED",
-        "SHIPPED",
-    }
-    if operation_type and operation_type not in allowed_types:
+    if operation_type and operation_type not in ALLOWED_OPERATION_TYPES:
         raise HTTPException(422, "Неизвестный тип операции")
-    if status and status not in allowed_statuses:
+    if status and status not in ALLOWED_STATUSES:
         raise HTTPException(422, "Неизвестный статус")
     if date_from and date_to and date_from > date_to:
         raise HTTPException(422, "Начальная дата не может быть позже конечной")
@@ -90,7 +80,26 @@ def operation_history(
                 date_to + timedelta(days=1), time.min, tzinfo=timezone.utc
             )
         )
+    return filters
 
+
+@router.get("/history")
+def operation_history(
+    request: Request,
+    q: str = "",
+    product_id: int | None = None,
+    operation_type: str = "",
+    status: str = "",
+    warehouse_id: int | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    page: int = Query(1, ge=1),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    filters = _build_filters(
+        q, product_id, operation_type, status, warehouse_id, date_from, date_to
+    )
     base_query = select(Operation).join(Product).where(*filters)
     total = (
         db.scalar(
@@ -125,8 +134,14 @@ def operation_history(
                 AuditLog.action.like("stock.%"),
                 AuditLog.entity_id.in_(operation_ids),
             )
+            .order_by(
+                AuditLog.entity_id,
+                AuditLog.created_at.desc(),
+                AuditLog.id.desc(),
+            )
         ).all()
-        actor_names = {entity_id: username for entity_id, username in actor_rows}
+        for entity_id, username in actor_rows:
+            actor_names.setdefault(entity_id, username)
 
     template_name = (
         "history_results.html"
@@ -147,8 +162,8 @@ def operation_history(
             "product_names": {
                 item.id: f"{item.sku} — {item.name}" for item in products
             },
-            "operation_types": sorted(allowed_types),
-            "statuses": sorted(allowed_statuses),
+            "operation_types": sorted(ALLOWED_OPERATION_TYPES),
+            "statuses": sorted(ALLOWED_STATUSES),
             "filters": {
                 "q": q,
                 "product_id": product_id,
@@ -165,6 +180,34 @@ def operation_history(
     )
 
 
+def _csv_safe(value):
+    """Prefix spreadsheet formula-like values, including those after whitespace."""
+    if isinstance(value, str) and value.lstrip().startswith(
+        ("=", "+", "-", "@", "\t", "\r")
+    ):
+        return "'" + value
+    return value
+
+
+def _to_utc_iso(value: datetime) -> str:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).isoformat()
+
+
+def _csv_value(column_key: str, value):
+    if column_key == "created_at":
+        return _to_utc_iso(value)
+    if column_key in {
+        "source_warehouse",
+        "destination_warehouse",
+        "actor_name",
+        "note",
+    }:
+        return value or ""
+    return value
+
+
 @router.get("/history/export")
 def export_operation_history(
     q: str = "",
@@ -177,23 +220,9 @@ def export_operation_history(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    allowed_types = {
-        "RECEIPT",
-        "TRANSFER",
-        "TRANSFER_RECEIVE",
-        "FBS_RESERVE",
-        "FBS_CANCEL",
-        "FBS_SHIP",
-        "FBO_SEND",
-        "FBO_ACCEPT",
-    }
-    allowed_statuses = {"DONE", "IN_TRANSIT", "ACCEPTED", "CANCELLED", "SHIPPED"}
-    if operation_type and operation_type not in allowed_types:
-        raise HTTPException(422, "Неизвестный тип операции")
-    if status and status not in allowed_statuses:
-        raise HTTPException(422, "Неизвестный статус")
-    if date_from and date_to and date_from > date_to:
-        raise HTTPException(422, "Начальная дата не может быть позже конечной")
+    filters = _build_filters(
+        q, product_id, operation_type, status, warehouse_id, date_from, date_to
+    )
 
     source = aliased(Warehouse)
     destination = aliased(Warehouse)
@@ -208,111 +237,48 @@ def export_operation_history(
         .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
         .limit(1)
         .scalar_subquery()
+        .label("actor_name")
+    )
+    columns = (
+        ("ID операции", "id", Operation.id.label("id")),
+        ("Дата и время (UTC)", "created_at", Operation.created_at.label("created_at")),
+        ("Тип операции", "type", Operation.type.label("type")),
+        ("SKU", "sku", Product.sku.label("sku")),
+        ("Товар", "product_name", Product.name.label("product_name")),
+        ("Количество", "qty", Operation.qty.label("qty")),
+        (
+            "Склад-источник",
+            "source_warehouse",
+            source.name.label("source_warehouse"),
+        ),
+        (
+            "Склад назначения",
+            "destination_warehouse",
+            destination.name.label("destination_warehouse"),
+        ),
+        ("Статус", "status", Operation.status.label("status")),
+        ("Пользователь", "actor_name", actor_name),
+        ("Примечание", "note", Operation.note.label("note")),
     )
     statement = (
-        select(
-            Operation.id,
-            Operation.created_at,
-            Operation.type,
-            Product.sku,
-            Product.name,
-            Operation.qty,
-            source.name,
-            destination.name,
-            Operation.status,
-            actor_name,
-            Operation.note,
-        )
+        select(*(column for _, _, column in columns))
         .join(Product, Product.id == Operation.product_id)
         .outerjoin(source, source.id == Operation.source_warehouse_id)
         .outerjoin(destination, destination.id == Operation.destination_warehouse_id)
+        .where(*filters)
     )
-    filters = []
-    if q.strip():
-        term = f"%{q.strip()}%"
-        filters.append(
-            or_(
-                Product.sku.ilike(term),
-                Product.name.ilike(term),
-                Operation.note.ilike(term),
-            )
-        )
-    if product_id is not None:
-        filters.append(Operation.product_id == product_id)
-    if operation_type:
-        filters.append(Operation.type == operation_type)
-    if status:
-        filters.append(Operation.status == status)
-    if warehouse_id is not None:
-        filters.append(
-            or_(
-                Operation.source_warehouse_id == warehouse_id,
-                Operation.destination_warehouse_id == warehouse_id,
-            )
-        )
-    if date_from:
-        filters.append(
-            Operation.created_at
-            >= datetime.combine(date_from, time.min, tzinfo=timezone.utc)
-        )
-    if date_to:
-        filters.append(
-            Operation.created_at
-            < datetime.combine(
-                date_to + timedelta(days=1), time.min, tzinfo=timezone.utc
-            )
-        )
-    if filters:
-        statement = statement.where(*filters)
-
     rows = db.execute(
         statement.order_by(Operation.created_at.desc(), Operation.id.desc())
     ).all()
 
     output = io.StringIO()
     writer = csv.writer(output, delimiter=";", lineterminator="\r\n")
-    writer.writerow(
-        [
-            "ID операции",
-            "Дата и время (UTC)",
-            "Тип операции",
-            "SKU",
-            "Товар",
-            "Количество",
-            "Склад-источник",
-            "Склад назначения",
-            "Статус",
-            "Пользователь",
-            "Примечание",
-        ]
-    )
+    writer.writerow(header for header, _, _ in columns)
 
     for row in rows:
-        values = [
-            row[0],
-            (row[1].replace(tzinfo=timezone.utc) if row[1].tzinfo is None else row[1])
-            .astimezone(timezone.utc)
-            .isoformat(),
-            row[2],
-            row[3],
-            row[4],
-            row[5],
-            row[6] or "",
-            row[7] or "",
-            row[8],
-            row[9] or "",
-            row[10] or "",
-        ]
-        safe_values = [
-            (
-                f"'{value}"
-                if isinstance(value, str)
-                and value.startswith(("=", "+", "-", "@", "\t", "\r"))
-                else value
-            )
-            for value in values
-        ]
-        writer.writerow(safe_values)
+        writer.writerow(
+            _csv_safe(_csv_value(key, getattr(row, key))) for _, key, _ in columns
+        )
 
     content = "\ufeff" + output.getvalue()
     filename = f"checkstock_operations_{datetime.now(timezone.utc):%Y%m%d}.csv"

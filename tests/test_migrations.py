@@ -26,6 +26,16 @@ def test_alembic_upgrade_preserves_existing_data_and_creates_schema(
             db.add(Product(sku="LEGACY-1", name="Существующий товар"))
             db.commit()
         with engine.begin() as connection:
+            for index_name in (
+                "ix_operations_created_at",
+                "ix_operations_product_id",
+                "ix_operations_history_created_id",
+                "ix_operations_product_created_at",
+                "ix_operations_source_warehouse_id",
+                "ix_operations_destination_warehouse_id",
+                "ix_audit_logs_entity_id",
+            ):
+                connection.exec_driver_sql(f"DROP INDEX IF EXISTS {index_name}")
             connection.exec_driver_sql("ALTER TABLE products DROP COLUMN minimum_stock")
         engine.dispose()
 
@@ -51,6 +61,13 @@ def test_alembic_upgrade_preserves_existing_data_and_creates_schema(
             column["name"] for column in inspector.get_columns("products")
         }
         assert "minimum_stock" in product_columns
+        operation_indexes = {
+            index["name"] for index in inspector.get_indexes("operations")
+        }
+        audit_indexes = {index["name"] for index in inspector.get_indexes("audit_logs")}
+        assert "ix_operations_history_created_id" in operation_indexes
+        assert "ix_operations_product_created_at" in operation_indexes
+        assert "ix_audit_logs_entity_id" in audit_indexes
 
         if existing_schema:
             with Session(engine) as db:

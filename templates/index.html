@@ -42,7 +42,7 @@
 </div>
 </section>
 <section id="stock" class="mb-4"><h4>Остатки по складам</h4><div class="card p-3"><div class="table-responsive"><table class="table table-hover"><thead><tr><th>SKU</th><th>Товар</th><th>ФФ</th><th>Физически</th><th>Доступно</th><th>Резерв FBS</th></tr></thead><tbody>
-{% for b in balances %}{% set p = products|selectattr("id","equalto",b.product_id)|first %}{% set w = (warehouses|list + archived|list)|selectattr("id","equalto",b.warehouse_id)|first %}<tr><td>{{p.sku}}</td><td>{{p.name}}</td><td>{{w.name}}{% if w.deleted_at %} <span class="badge text-bg-secondary">Архив</span>{% endif %}</td><td>{{b.physical_qty}}</td><td>{{b.available_qty}}</td><td>{{b.reserved_qty}}</td></tr>{% else %}<tr><td colspan="6" class="text-center muted">Остатков пока нет</td></tr>{% endfor %}</tbody></table></div></div>
+{% for b in balances %}{% set p = products_by_id.get(b.product_id) %}{% set w = warehouses_by_id.get(b.warehouse_id) %}<tr><td>{{p.sku}}</td><td>{{p.name}}</td><td>{{w.name}}{% if w.deleted_at %} <span class="badge text-bg-secondary">Архив</span>{% endif %}</td><td>{{b.physical_qty}}</td><td>{{b.available_qty}}</td><td>{{b.reserved_qty}}</td></tr>{% else %}<tr><td colspan="6" class="text-center muted">Остатков пока нет</td></tr>{% endfor %}</tbody></table></div></div>
 <div class="row g-3 mt-1">{% for label, types in [("В пути между ФФ",["TRANSFER"]),("FBO в пути",["FBO_SEND"]),("FBS к клиенту",["FBS_SHIP"])] %}<div class="col-md-4"><div class="card p-3"><div class="muted small">{{label}}</div><h4>{{transit|selectattr("type","in",types)|sum(attribute="qty")}}</h4></div></div>{% endfor %}</div>
 <div class="card p-3 mt-3">
 <strong class="mb-2">Товары в пути</strong>
@@ -50,7 +50,7 @@
 <thead><tr><th>Операция</th><th>SKU</th><th>Количество</th><th>Откуда</th><th>Куда</th><th>Статус</th></tr></thead>
 <tbody>
 {% for op in transit %}
-{% set p = products|selectattr("id","equalto",op.product_id)|first %}
+{% set p = products_by_id.get(op.product_id) %}
 <tr>
 <td>#{{op.id}}</td><td>{{p.sku}} — {{p.name}}</td><td>{{op.qty}}</td>
 <td>{{names.get(op.source_warehouse_id, "—")}}</td>
@@ -61,7 +61,7 @@
 </tbody></table></div>
 <div class="muted small mt-2">Показываются все незавершённые перемещения, FBO-отправки и отправки FBS, независимо от даты операции.</div>
 </div>
-{% if archived %}<h5 class="mt-4">Архивные склады и остатки</h5>{% for w in archived %}<div class="card p-3 mb-2"><strong>{{w.name}} <span class="badge text-bg-secondary">Архив</span></strong><div class="table-responsive mt-2"><table class="table table-sm mb-0"><thead><tr><th>SKU</th><th>Товар</th><th>Физически</th><th>Доступно</th><th>Резерв FBS</th></tr></thead><tbody>{% for b in balances if b.warehouse_id == w.id %}{% set p = products|selectattr("id","equalto",b.product_id)|first %}<tr><td>{{p.sku}}</td><td>{{p.name}}</td><td>{{b.physical_qty}}</td><td>{{b.available_qty}}</td><td>{{b.reserved_qty}}</td></tr>{% else %}<tr><td colspan="5" class="muted">Остатков нет</td></tr>{% endfor %}</tbody></table></div></div>{% endfor %}{% endif %}</section>
+{% if archived %}<h5 class="mt-4">Архивные склады и остатки</h5>{% for w in archived %}<div class="card p-3 mb-2"><strong>{{w.name}} <span class="badge text-bg-secondary">Архив</span></strong><div class="table-responsive mt-2"><table class="table table-sm mb-0"><thead><tr><th>SKU</th><th>Товар</th><th>Физически</th><th>Доступно</th><th>Резерв FBS</th></tr></thead><tbody>{% for b in balances if b.warehouse_id == w.id %}{% set p = products_by_id.get(b.product_id) %}<tr><td>{{p.sku}}</td><td>{{p.name}}</td><td>{{b.physical_qty}}</td><td>{{b.available_qty}}</td><td>{{b.reserved_qty}}</td></tr>{% else %}<tr><td colspan="5" class="muted">Остатков нет</td></tr>{% endfor %}</tbody></table></div></div>{% endfor %}{% endif %}</section>
 {% if user.role in ["admin", "warehouse_manager"] %}<section id="warehouses" class="mb-4"><h4>Склады</h4><div class="card p-3 mb-3"><form method="post" action="/warehouses" class="d-flex gap-2"><input name="name" class="form-control" placeholder="Название нового ФФ" required><button class="btn btn-primary">Добавить</button></form></div>
 {% for w in warehouses %}<div class="card p-3 mb-2"><div class="d-flex flex-wrap gap-2"><form method="post" action="/warehouses/{{w.id}}/rename" class="d-flex gap-2 flex-grow-1"><input class="form-control" name="name" value="{{w.name}}" required><button class="btn btn-outline-secondary">Переименовать</button></form><form method="post" action="/warehouses/{{w.id}}/delete" onsubmit="return confirm('Архивировать склад? Остатки и история сохранятся.')"><button class="btn btn-outline-danger">Удалить</button></form></div></div>{% endfor %}</section>{% endif %}
 {% if user.role in ["admin", "warehouse_manager", "operator"] %}<section id="operations" class="mb-4"><h4>Новая операция</h4><div class="card p-3"><form method="post" action="/operations" class="row g-3">

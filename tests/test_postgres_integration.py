@@ -254,3 +254,47 @@ def test_postgres_concurrent_receipt_with_same_key_applies_once(postgres_db):
 
     assert source_qty == 15
     assert receipt_count == 1
+
+
+def test_postgres_concurrent_first_balance_creation_is_safe(postgres_db):
+    _, session_factory, _ = postgres_db
+    with session_factory.begin() as db:
+        product = Product(sku="PG-FIRST-BALANCE", name="First balance race")
+        warehouse = Warehouse(name="PG First balance")
+        db.add_all([product, warehouse])
+        db.flush()
+        product_id = product.id
+        warehouse_id = warehouse.id
+
+    barrier = Barrier(2)
+
+    def add_receipt(key):
+        with session_factory() as db:
+            barrier.wait(timeout=10)
+            return receipt(db, product_id, warehouse_id, 5, key).id
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        operation_ids = list(
+            executor.map(add_receipt, ("pg-first-balance-a", "pg-first-balance-b"))
+        )
+
+    assert operation_ids[0] != operation_ids[1]
+    with session_factory() as db:
+        balance = db.scalar(
+            select(StockBalance).where(
+                StockBalance.product_id == product_id,
+                StockBalance.warehouse_id == warehouse_id,
+            )
+        )
+        receipt_count = db.scalar(
+            select(func.count())
+            .select_from(Operation)
+            .where(
+                Operation.product_id == product_id,
+                Operation.type == "RECEIPT",
+            )
+        )
+
+    assert balance is not None
+    assert balance.physical_qty == 10
+    assert receipt_count == 2

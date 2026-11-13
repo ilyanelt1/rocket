@@ -11,6 +11,11 @@ from .models import User
 
 _ITERATIONS = 600_000
 MIN_PASSWORD_LENGTH = 12
+# A syntactically valid hash used to keep failed-login work comparable.
+_DUMMY_PASSWORD_HASH = (
+    "pbkdf2_sha256$600000$00000000000000000000000000000000$"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+)
 
 
 def hash_password(password: str) -> str:
@@ -34,6 +39,11 @@ def verify_password(password: str, encoded: str) -> bool:
         return False
     except TypeError:
         return False
+
+
+def verify_dummy_password(password: str) -> bool:
+    """Perform the password-hash work for unknown or inactive accounts."""
+    return verify_password(password, _DUMMY_PASSWORD_HASH)
 
 
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:

@@ -1,4 +1,5 @@
 from app.auth import hash_password, verify_password
+from app.main import _get_session_secret
 
 import pytest
 from app.models import AuditLog, User
@@ -313,3 +314,60 @@ def test_operation_form_validates_required_warehouse(auth_client):
 
     assert response.status_code == 422
     assert "необходимо выбрать склад" in response.text
+
+
+def test_dummy_password_hash_is_used_for_unknown_login(auth_client, monkeypatch):
+    import app.main as main
+
+    client, _ = auth_client
+    calls = []
+    monkeypatch.setattr(
+        main,
+        "verify_dummy_password",
+        lambda password: calls.append(password) or False,
+    )
+
+    response = client.post(
+        "/login",
+        data={"username": "missing-user", "password": "some-password"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 401
+    assert calls == ["some-password"]
+
+
+def test_session_secret_is_required(monkeypatch):
+    monkeypatch.delenv("SESSION_SECRET", raising=False)
+
+    with pytest.raises(RuntimeError, match="SESSION_SECRET is required"):
+        _get_session_secret()
+
+
+def test_session_secret_must_be_at_least_32_characters(monkeypatch):
+    monkeypatch.setenv("SESSION_SECRET", "too-short")
+
+    with pytest.raises(RuntimeError, match="at least 32"):
+        _get_session_secret()
+
+
+def test_session_secret_returns_configured_stable_value(monkeypatch):
+    secret = "stable-test-session-secret-with-32-chars"
+    monkeypatch.setenv("SESSION_SECRET", secret)
+
+    assert _get_session_secret() == secret
+
+
+def test_dummy_password_verification_uses_pbkdf2_work(monkeypatch):
+    import app.auth as auth
+
+    hashes = []
+    monkeypatch.setattr(
+        auth,
+        "verify_password",
+        lambda password, encoded: hashes.append(encoded) or False,
+    )
+
+    assert auth.verify_dummy_password("arbitrary-password") is False
+    assert len(hashes) == 1
+    assert hashes[0].startswith("pbkdf2_sha256$600000$")
