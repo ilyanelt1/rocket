@@ -277,8 +277,7 @@ def export_operation_history(
 
     for row in rows:
         writer.writerow(
-            _csv_safe(_csv_value(key, getattr(row, key)))
-            for _, key, _ in columns
+            _csv_safe(_csv_value(key, getattr(row, key))) for _, key, _ in columns
         )
 
     content = "\ufeff" + output.getvalue()
