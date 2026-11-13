@@ -209,7 +209,9 @@ def test_idempotent_retry_does_not_duplicate_audit_event(db, ids):
     )
 
     assert first.id == second.id
-    events = db.query(AuditLog).filter_by(
-        entity_type="operation", entity_id=first.id
-    ).all()
+    events = (
+        db.query(AuditLog)
+        .filter_by(entity_type="operation", entity_id=first.id)
+        .all()
+    )
     assert len(events) == 1
