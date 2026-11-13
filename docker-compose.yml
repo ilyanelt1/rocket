@@ -30,7 +30,7 @@ services:
     build: .
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8005"]
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-checkstock}:${POSTGRES_PASSWORD:-checkstock}@db:5432/${POSTGRES_DB:-checkstock}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-checkstock}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-checkstock}
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
     ports:
