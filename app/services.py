@@ -55,6 +55,25 @@ def _existing(db: Session, key: str | None):
     return db.scalar(select(Operation).where(Operation.idempotency_key == key))
 
 
+def _matches_request(operation: Operation, expected: dict) -> bool:
+    for field, value in expected.items():
+        actual = getattr(operation, field)
+        if isinstance(value, tuple):
+            if actual not in value:
+                return False
+        elif actual != value:
+            return False
+    return True
+
+
+def _validate_idempotent_retry(operation: Operation, expected: dict) -> Operation:
+    if not _matches_request(operation, expected):
+        raise StockError(
+            "Ключ идемпотентности уже использован для другой операции."
+        )
+    return operation
+
+
 def _record(
     db: Session,
     kind: str,
@@ -90,13 +109,14 @@ def _run(
     action,
     key: str | None = None,
     actor_user_id: int | None = None,
+    expected: dict | None = None,
 ):
+    expected = expected or {}
     try:
-        # Idempotent retries must return the original operation without
-        # generating a second audit event.
+        # A key may only replay the exact same operation intent.
         existing = _existing(db, key)
         if existing is not None:
-            return existing
+            return _validate_idempotent_retry(existing, expected)
 
         result = action()
         new_operation_ids = db.info.setdefault("_new_operation_ids", set())
@@ -129,7 +149,7 @@ def _run(
         if key:
             existing = _existing(db, key)
             if existing:
-                return existing
+                return _validate_idempotent_retry(existing, expected)
         raise
 
 
@@ -143,10 +163,6 @@ def receipt(
 ):
     def action():
         _positive(qty)
-        old = _existing(db, key)
-        if old:
-            return old
-
         _warehouse(db, warehouse_id)
         balance = _balance(db, product_id, warehouse_id)
         balance.physical_qty += qty
@@ -160,7 +176,18 @@ def receipt(
             key=key,
         )
 
-    return _run(db, action, key, actor_user_id)
+    return _run(
+        db,
+        action,
+        key,
+        actor_user_id,
+        {
+            "type": "RECEIPT",
+            "product_id": product_id,
+            "qty": qty,
+            "destination_warehouse_id": warehouse_id,
+        },
+    )
 
 
 def reserve_fbs(
@@ -173,10 +200,6 @@ def reserve_fbs(
 ):
     def action():
         _positive(qty)
-        old = _existing(db, key)
-        if old:
-            return old
-
         _warehouse(db, warehouse_id)
         balance = _balance(db, product_id, warehouse_id)
         if balance.available_qty < qty:
@@ -196,7 +219,18 @@ def reserve_fbs(
             key=key,
         )
 
-    return _run(db, action, key, actor_user_id)
+    return _run(
+        db,
+        action,
+        key,
+        actor_user_id,
+        {
+            "type": "FBS_RESERVE",
+            "product_id": product_id,
+            "qty": qty,
+            "source_warehouse_id": warehouse_id,
+        },
+    )
 
 
 def cancel_fbs(
@@ -206,10 +240,6 @@ def cancel_fbs(
     actor_user_id: int | None = None,
 ):
     def action():
-        old = _existing(db, key)
-        if old:
-            return old
-
         reserve = db.scalar(
             select(Operation).where(Operation.id == reserve_id).with_for_update()
         )
@@ -237,7 +267,13 @@ def cancel_fbs(
             related=reserve.id,
         )
 
-    return _run(db, action, key, actor_user_id)
+    return _run(
+        db,
+        action,
+        key,
+        actor_user_id,
+        {"type": "FBS_CANCEL", "related_operation_id": reserve_id},
+    )
 
 
 def ship_fbs(
@@ -247,10 +283,6 @@ def ship_fbs(
     actor_user_id: int | None = None,
 ):
     def action():
-        old = _existing(db, key)
-        if old:
-            return old
-
         reserve = db.scalar(
             select(Operation).where(Operation.id == reserve_id).with_for_update()
         )
@@ -279,7 +311,13 @@ def ship_fbs(
             related=reserve.id,
         )
 
-    return _run(db, action, key, actor_user_id)
+    return _run(
+        db,
+        action,
+        key,
+        actor_user_id,
+        {"type": "FBS_SHIP", "related_operation_id": reserve_id},
+    )
 
 
 def transfer(
@@ -293,10 +331,6 @@ def transfer(
 ):
     def action():
         _positive(qty)
-        old = _existing(db, key)
-        if old:
-            return old
-
         if source_id == destination_id:
             raise StockError("Склады отправления и получения должны различаться.")
 
@@ -321,7 +355,19 @@ def transfer(
             key=key,
         )
 
-    return _run(db, action, key, actor_user_id)
+    return _run(
+        db,
+        action,
+        key,
+        actor_user_id,
+        {
+            "type": "TRANSFER",
+            "product_id": product_id,
+            "qty": qty,
+            "source_warehouse_id": source_id,
+            "destination_warehouse_id": destination_id,
+        },
+    )
 
 
 def fbo_send(
@@ -334,10 +380,6 @@ def fbo_send(
 ):
     def action():
         _positive(qty)
-        old = _existing(db, key)
-        if old:
-            return old
-
         _warehouse(db, source_id)
         balance = _balance(db, product_id, source_id)
         if balance.available_qty < qty:
@@ -357,7 +399,18 @@ def fbo_send(
             key=key,
         )
 
-    return _run(db, action, key, actor_user_id)
+    return _run(
+        db,
+        action,
+        key,
+        actor_user_id,
+        {
+            "type": "FBO_SEND",
+            "product_id": product_id,
+            "qty": qty,
+            "source_warehouse_id": source_id,
+        },
+    )
 
 
 def accept_movement(
@@ -367,10 +420,6 @@ def accept_movement(
     actor_user_id: int | None = None,
 ):
     def action():
-        old = _existing(db, key)
-        if old:
-            return old
-
         operation = db.scalar(
             select(Operation).where(Operation.id == operation_id).with_for_update()
         )
@@ -403,7 +452,16 @@ def accept_movement(
             related=operation.id,
         )
 
-    return _run(db, action, key, actor_user_id)
+    return _run(
+        db,
+        action,
+        key,
+        actor_user_id,
+        {
+            "type": ("TRANSFER_RECEIVE", "FBO_ACCEPT"),
+            "related_operation_id": operation_id,
+        },
+    )
 
 
 def reconcile(db: Session, product_id: int):
