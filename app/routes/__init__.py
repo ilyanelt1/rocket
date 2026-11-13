@@ -1,1 +1,1 @@
-"""Application route modules."""
+"""HTTP route modules for CheckStock."""

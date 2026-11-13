@@ -317,12 +317,12 @@ def test_operation_form_validates_required_warehouse(auth_client):
 
 
 def test_dummy_password_hash_is_used_for_unknown_login(auth_client, monkeypatch):
-    import app.main as main
+    import app.routes.auth as auth_routes
 
     client, _ = auth_client
     calls = []
     monkeypatch.setattr(
-        main,
+        auth_routes,
         "verify_dummy_password",
         lambda password: calls.append(password) or False,
     )
