@@ -109,18 +109,18 @@ def _run(
             if existing_audit is None:
                 db.add(
                     AuditLog(
-                    actor_user_id=actor_user_id,
-                    action=f"stock.{result.type.lower()}",
-                    entity_type="operation",
-                    entity_id=result.id,
-                    details={
-                        "operation_type": result.type,
-                        "status": result.status,
-                        "product_id": result.product_id,
-                        "quantity": result.qty,
-                        "source_warehouse_id": result.source_warehouse_id,
-                        "destination_warehouse_id": result.destination_warehouse_id,
-                    },
+                        actor_user_id=actor_user_id,
+                        action=f"stock.{result.type.lower()}",
+                        entity_type="operation",
+                        entity_id=result.id,
+                        details={
+                            "operation_type": result.type,
+                            "status": result.status,
+                            "product_id": result.product_id,
+                            "quantity": result.qty,
+                            "source_warehouse_id": result.source_warehouse_id,
+                            "destination_warehouse_id": result.destination_warehouse_id,
+                        },
                     )
                 )
         db.commit()
