@@ -26,9 +26,7 @@ def test_alembic_upgrade_preserves_existing_data_and_creates_schema(
             db.add(Product(sku="LEGACY-1", name="Существующий товар"))
             db.commit()
         with engine.begin() as connection:
-            connection.exec_driver_sql(
-                "ALTER TABLE products DROP COLUMN minimum_stock"
-            )
+            connection.exec_driver_sql("ALTER TABLE products DROP COLUMN minimum_stock")
         engine.dispose()
 
     monkeypatch.setenv("DATABASE_URL", database_url)
@@ -56,9 +54,7 @@ def test_alembic_upgrade_preserves_existing_data_and_creates_schema(
 
         if existing_schema:
             with Session(engine) as db:
-                product = db.scalar(
-                    select(Product).where(Product.sku == "LEGACY-1")
-                )
+                product = db.scalar(select(Product).where(Product.sku == "LEGACY-1"))
                 assert product is not None
                 assert product.name == "Существующий товар"
                 assert product.minimum_stock == 0
