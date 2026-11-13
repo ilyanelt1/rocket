@@ -18,6 +18,16 @@ def test_password_must_be_at_least_twelve_characters():
         hash_password("short")
 
 
+def test_api_returns_json_401_for_anonymous_user(auth_client):
+    client, _ = auth_client
+
+    response = client.get("/api/reconcile/1", follow_redirects=False)
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Требуется авторизация"}
+    assert "location" not in response.headers
+
+
 def test_dashboard_redirects_anonymous_user_to_login(auth_client):
     client, _ = auth_client
 
