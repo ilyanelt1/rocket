@@ -272,7 +272,7 @@ def export_operation_history(
     ).all()
 
     output = io.StringIO()
-    writer = csv.writer(output, delimiter=";", lineterminator="\\r\\n")
+    writer = csv.writer(output, delimiter=";", lineterminator="\r\n")
     writer.writerow(header for header, _, _ in columns)
 
     for row in rows:
@@ -281,7 +281,7 @@ def export_operation_history(
             for _, key, _ in columns
         )
 
-    content = "\\ufeff" + output.getvalue()
+    content = "\ufeff" + output.getvalue()
     filename = f"checkstock_operations_{datetime.now(timezone.utc):%Y%m%d}.csv"
     return Response(
         content=content,
