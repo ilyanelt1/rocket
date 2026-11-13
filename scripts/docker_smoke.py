@@ -18,6 +18,7 @@ def main():
     env.setdefault("SESSION_SECRET", "precommit-session-secret-not-for-production")
     env.setdefault("ADMIN_USERNAME", "precommit-admin")
     env.setdefault("ADMIN_PASSWORD", "precommit-admin-password-123")
+    env.setdefault("POSTGRES_PASSWORD", "precommit-postgres-password-123")
     env.setdefault("COOKIE_SECURE", "false")
 
     env["POSTGRES_HOST_PORT"] = "55433"
