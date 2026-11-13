@@ -28,7 +28,9 @@ def test_verify_falls_back_to_archive_listing_without_createdb(
 ):
     archive = tmp_path / "backup.dump"
     archive.write_bytes(b"custom archive")
-    monkeypatch.setattr(db_backup, "database_settings", lambda: ("checkstock", "limited"))
+    monkeypatch.setattr(
+        db_backup, "database_settings", lambda: ("checkstock", "limited")
+    )
     calls = []
 
     def fake_compose_exec(*args, **kwargs):
@@ -52,8 +54,12 @@ def test_restore_creates_exactly_one_safety_backup(tmp_path: Path, monkeypatch):
     archive = tmp_path / "backup.dump"
     archive.write_bytes(b"custom archive")
     safety_backups = []
-    monkeypatch.setattr(db_backup, "database_settings", lambda: ("checkstock", "user"))
-    monkeypatch.setattr(db_backup, "backup", lambda destination: safety_backups.append(destination))
+    monkeypatch.setattr(
+        db_backup, "database_settings", lambda: ("checkstock", "user")
+    )
+    monkeypatch.setattr(
+        db_backup, "backup", lambda destination: safety_backups.append(destination)
+    )
     monkeypatch.setattr(db_backup, "compose_exec", lambda *args, **kwargs: None)
 
     restore(archive, confirmed=True)
