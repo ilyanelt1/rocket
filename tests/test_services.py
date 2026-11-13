@@ -178,3 +178,20 @@ def test_reconciliation_counts_fbo_in_transit_then_accepted(db, ids):
     assert accepted["in_transit"] == 0
     assert accepted["fbo_accepted"] == 2
     assert accepted["total"] == 16
+
+
+def test_idempotent_retry_does_not_duplicate_audit_event(db, ids):
+    from app.models import AuditLog
+
+    first = receipt(
+        db, ids["product"], ids["north"], 2, "audited-receipt-key", actor_user_id=1
+    )
+    second = receipt(
+        db, ids["product"], ids["north"], 2, "audited-receipt-key", actor_user_id=1
+    )
+
+    assert first.id == second.id
+    events = db.query(AuditLog).filter_by(
+        entity_type="operation", entity_id=first.id
+    ).all()
+    assert len(events) == 1
