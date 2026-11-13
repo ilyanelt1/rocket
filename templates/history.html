@@ -28,5 +28,29 @@ body{background:#f5f7fb}.navbar{background:#14213d}.card{border:0;box-shadow:0 3
 </form>
 {% include "history_results.html" %}
 </main>
+<script>
+(() => {
+    const filtersForm = document.getElementById("history-filters");
+
+    // Native form submission is used by the CSV export button.
+    // Empty optional values must be omitted, not sent as empty strings.
+    filtersForm.addEventListener("formdata", (event) => {
+        for (const [name, value] of event.formData.entries()) {
+            if (typeof value === "string" && value.trim() === "") {
+                event.formData.delete(name);
+            }
+        }
+    });
+
+    // HTMX uses a separate request path for applying the history filters.
+    document.body.addEventListener("htmx:configRequest", (event) => {
+        for (const [name, value] of Object.entries(event.detail.parameters)) {
+            if (typeof value === "string" && value.trim() === "") {
+                delete event.detail.parameters[name];
+            }
+        }
+    });
+})();
+</script>
 </body>
 </html>
