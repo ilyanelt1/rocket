@@ -208,3 +208,19 @@ def test_history_and_export_reject_invalid_date_range_consistently(auth_client):
 
     assert client.get("/history", params=params).status_code == 422
     assert client.get("/history/export", params=params).status_code == 422
+
+
+def test_history_and_csv_export_accept_blank_optional_integer_filters(auth_client):
+    client, db = auth_client
+    _seed_history(db)
+    _login(client)
+    params = {"product_id": "", "warehouse_id": ""}
+
+    page = client.get("/history", params=params)
+    export = client.get("/history/export", params=params)
+
+    assert page.status_code == 200
+    assert "История операций" in page.text
+    assert export.status_code == 200
+    assert export.headers["content-type"].startswith("text/csv")
+    assert "ID операции;Дата и время (UTC)" in export.content.decode("utf-8-sig")

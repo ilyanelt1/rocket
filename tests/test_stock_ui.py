@@ -119,3 +119,55 @@ def test_dashboard_lists_all_active_transit_even_when_not_in_latest_100(auth_cli
     assert "Север тестовый" in response.text
     assert "Юг тестовый" in response.text
     assert ">3</td>" in response.text
+
+
+def test_receipt_accepts_blank_hidden_optional_operation_fields(auth_client):
+    client, db = auth_client
+    product = Product(sku="FORM-101", name="Приход с пустыми необязательными полями")
+    warehouse = Warehouse(name="Склад для проверки формы")
+    db.add_all([product, warehouse])
+    db.flush()
+    db.add(
+        StockBalance(
+            product_id=product.id,
+            warehouse_id=warehouse.id,
+            physical_qty=5,
+            reserved_qty=0,
+        )
+    )
+    db.commit()
+    _login(client)
+
+    response = client.post(
+        "/operations",
+        data={
+            "kind": "RECEIPT",
+            "product_id": product.id,
+            "warehouse_id": str(warehouse.id),
+            "destination_id": "",
+            "reserve_id": "",
+            "operation_id": "",
+            "qty": "3",
+            "idempotency_key": "",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
+    balance = db.scalar(
+        select(StockBalance).where(
+            StockBalance.product_id == product.id,
+            StockBalance.warehouse_id == warehouse.id,
+        )
+    )
+    assert balance.physical_qty == 8
+    assert (
+        db.scalar(
+            select(Operation).where(
+                Operation.product_id == product.id,
+                Operation.type == "RECEIPT",
+            )
+        )
+        is not None
+    )
