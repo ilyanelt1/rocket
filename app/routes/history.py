@@ -195,6 +195,19 @@ def _to_utc_iso(value: datetime) -> str:
     return value.astimezone(timezone.utc).isoformat()
 
 
+def _csv_value(column_key: str, value):
+    if column_key == "created_at":
+        return _to_utc_iso(value)
+    if column_key in {
+        "source_warehouse",
+        "destination_warehouse",
+        "actor_name",
+        "note",
+    }:
+        return value or ""
+    return value
+
+
 @router.get("/history/export")
 def export_operation_history(
     q: str = "",
@@ -226,20 +239,29 @@ def export_operation_history(
         .scalar_subquery()
         .label("actor_name")
     )
-    statement = (
-        select(
-            Operation.id.label("id"),
-            Operation.created_at.label("created_at"),
-            Operation.type.label("type"),
-            Product.sku.label("sku"),
-            Product.name.label("product_name"),
-            Operation.qty.label("qty"),
+    columns = (
+        ("ID операции", "id", Operation.id.label("id")),
+        ("Дата и время (UTC)", "created_at", Operation.created_at.label("created_at")),
+        ("Тип операции", "type", Operation.type.label("type")),
+        ("SKU", "sku", Product.sku.label("sku")),
+        ("Товар", "product_name", Product.name.label("product_name")),
+        ("Количество", "qty", Operation.qty.label("qty")),
+        (
+            "Склад-источник",
+            "source_warehouse",
             source.name.label("source_warehouse"),
+        ),
+        (
+            "Склад назначения",
+            "destination_warehouse",
             destination.name.label("destination_warehouse"),
-            Operation.status.label("status"),
-            actor_name,
-            Operation.note.label("note"),
-        )
+        ),
+        ("Статус", "status", Operation.status.label("status")),
+        ("Пользователь", "actor_name", actor_name),
+        ("Примечание", "note", Operation.note.label("note")),
+    )
+    statement = (
+        select(*(column for _, _, column in columns))
         .join(Product, Product.id == Operation.product_id)
         .outerjoin(source, source.id == Operation.source_warehouse_id)
         .outerjoin(destination, destination.id == Operation.destination_warehouse_id)
@@ -250,39 +272,13 @@ def export_operation_history(
     ).all()
 
     output = io.StringIO()
-    writer = csv.writer(output, delimiter=";", lineterminator="\r\n")
-    writer.writerow(
-        [
-            "ID операции",
-            "Дата и время (UTC)",
-            "Тип операции",
-            "SKU",
-            "Товар",
-            "Количество",
-            "Склад-источник",
-            "Склад назначения",
-            "Статус",
-            "Пользователь",
-            "Примечание",
-        ]
-    )
+    writer = csv.writer(output, delimiter=";", lineterminator="\\r\\n")
+    writer.writerow(header for header, _, _ in columns)
 
     for row in rows:
         writer.writerow(
-            _csv_safe(value)
-            for value in (
-                row.id,
-                _to_utc_iso(row.created_at),
-                row.type,
-                row.sku,
-                row.product_name,
-                row.qty,
-                row.source_warehouse or "",
-                row.destination_warehouse or "",
-                row.status,
-                row.actor_name or "",
-                row.note or "",
-            )
+            _csv_safe(_csv_value(key, getattr(row, key)))
+            for _, key, _ in columns
         )
 
     content = "\\ufeff" + output.getvalue()
