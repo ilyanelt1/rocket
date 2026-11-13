@@ -276,3 +276,13 @@ def test_operator_cannot_change_roles_or_account_status(auth_client):
     assert role_response.status_code == 403
     assert deactivate_response.status_code == 403
     assert activate_response.status_code == 403
+
+
+def test_api_reconcile_returns_json_401_for_anonymous_user(auth_client):
+    client, _ = auth_client
+
+    response = client.get("/api/reconcile/1", follow_redirects=False)
+
+    assert response.status_code == 401
+    assert response.headers.get("location") is None
+    assert response.json()["detail"] == "Требуется авторизация"
