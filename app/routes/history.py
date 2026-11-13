@@ -250,7 +250,7 @@ def export_operation_history(
     ).all()
 
     output = io.StringIO()
-    writer = csv.writer(output, delimiter=";", lineterminator="\\r\\n")
+    writer = csv.writer(output, delimiter=";", lineterminator="\r\n")
     writer.writerow(
         [
             "ID операции",
