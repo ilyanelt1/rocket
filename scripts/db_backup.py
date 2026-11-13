@@ -97,7 +97,10 @@ def verify(archive: Path) -> None:
         compose_exec("createdb", "-U", username, temporary_db, capture_output=True)
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or b"").decode(errors="replace").lower()
-        if "permission denied to create database" not in detail and "createdb" not in detail:
+        if (
+            "permission denied to create database" not in detail
+            and "createdb" not in detail
+        ):
             raise
         # Least-privilege production roles may not have CREATEDB. In that case,
         # validate the custom archive TOC without creating or touching a database.
