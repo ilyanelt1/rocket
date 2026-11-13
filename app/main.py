@@ -866,55 +866,36 @@ def create_operation(
         raise StockError("Неизвестный тип операции.")
     if any(value is None for value in required_parameters[kind]):
         raise HTTPException(422, "Не заполнены обязательные параметры операции.")
-
-    if qty <= 0 and kind in {"RECEIPT", "FBS_RESERVE", "TRANSFER", "FBO_SEND"}:
+    if kind in {"RECEIPT", "FBS_RESERVE", "TRANSFER", "FBO_SEND"} and qty <= 0:
         raise HTTPException(422, "Количество должно быть больше нуля.")
 
     if kind == "RECEIPT":
-            receipt(
-                db,
-                product_id,
-                warehouse_id,
-                qty,
-                idempotency_key,
-                actor_user_id=user.id,
-            )
-        elif kind == "FBS_RESERVE":
-            reserve_fbs(
-                db,
-                product_id,
-                warehouse_id,
-                qty,
-                idempotency_key,
-                actor_user_id=user.id,
-            )
-        elif kind == "FBS_CANCEL":
-            cancel_fbs(db, reserve_id, idempotency_key, actor_user_id=user.id)
-        elif kind == "FBS_SHIP":
-            ship_fbs(db, reserve_id, idempotency_key, actor_user_id=user.id)
-        elif kind == "TRANSFER":
-            transfer(
-                db,
-                product_id,
-                warehouse_id,
-                destination_id,
-                qty,
-                idempotency_key,
-                actor_user_id=user.id,
-            )
-        elif kind == "FBO_SEND":
-            fbo_send(
-                db,
-                product_id,
-                warehouse_id,
-                qty,
-                idempotency_key,
-                actor_user_id=user.id,
-            )
-        elif kind == "ACCEPT":
-            accept_movement(db, operation_id, idempotency_key, actor_user_id=user.id)
-        else:
-            raise StockError("Неизвестный тип операции.")
+        receipt(
+            db, product_id, warehouse_id, qty, idempotency_key,
+            actor_user_id=user.id,
+        )
+    elif kind == "FBS_RESERVE":
+        reserve_fbs(
+            db, product_id, warehouse_id, qty, idempotency_key,
+            actor_user_id=user.id,
+        )
+    elif kind == "FBS_CANCEL":
+        cancel_fbs(db, reserve_id, idempotency_key, actor_user_id=user.id)
+    elif kind == "FBS_SHIP":
+        ship_fbs(db, reserve_id, idempotency_key, actor_user_id=user.id)
+    elif kind == "TRANSFER":
+        transfer(
+            db, product_id, warehouse_id, destination_id, qty, idempotency_key,
+            actor_user_id=user.id,
+        )
+    elif kind == "FBO_SEND":
+        fbo_send(
+            db, product_id, warehouse_id, qty, idempotency_key,
+            actor_user_id=user.id,
+        )
+    elif kind == "ACCEPT":
+        accept_movement(db, operation_id, idempotency_key, actor_user_id=user.id)
+
     return RedirectResponse("/", status_code=303)
 
 
