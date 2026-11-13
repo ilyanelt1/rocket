@@ -6,6 +6,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    Index,
     String,
     UniqueConstraint,
 )
@@ -51,6 +52,10 @@ class StockBalance(Base):
 
 class Operation(Base):
     __tablename__ = "operations"
+    __table_args__ = (
+        Index("ix_operations_history_created_id", "created_at", "id"),
+        Index("ix_operations_product_created_at", "product_id", "created_at"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     type: Mapped[str] = mapped_column(String(32), index=True)
     status: Mapped[str] = mapped_column(String(24), index=True)
