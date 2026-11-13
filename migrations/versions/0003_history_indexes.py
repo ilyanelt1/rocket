@@ -15,6 +15,16 @@ depends_on = None
 _INDEXES = (
     ("operations", "ix_operations_created_at", ["created_at"]),
     ("operations", "ix_operations_product_id", ["product_id"]),
+    (
+        "operations",
+        "ix_operations_history_created_id",
+        ["created_at", "id"],
+    ),
+    (
+        "operations",
+        "ix_operations_product_created_at",
+        ["product_id", "created_at"],
+    ),
     ("operations", "ix_operations_source_warehouse_id", ["source_warehouse_id"]),
     (
         "operations",
