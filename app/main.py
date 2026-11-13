@@ -125,7 +125,7 @@ def login(
     password_valid = (
         verify_password(password, user.password_hash)
         if user is not None and user.is_active
-        else verify_dummy_password(password) is None
+        else verify_dummy_password(password)
     )
     if user is None or not user.is_active or not password_valid:
         return templates.TemplateResponse(
