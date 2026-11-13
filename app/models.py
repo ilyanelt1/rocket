@@ -39,7 +39,7 @@ class StockBalance(Base):
     __tablename__ = "stock_balances"
     __table_args__ = (UniqueConstraint("product_id", "warehouse_id"),)
     id: Mapped[int] = mapped_column(primary_key=True)
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
     warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"))
     physical_qty: Mapped[int] = mapped_column(Integer, default=0)
     reserved_qty: Mapped[int] = mapped_column(Integer, default=0)
@@ -54,7 +54,7 @@ class Operation(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     type: Mapped[str] = mapped_column(String(32), index=True)
     status: Mapped[str] = mapped_column(String(24), index=True)
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
     source_warehouse_id: Mapped[int | None] = mapped_column(
         ForeignKey("warehouses.id"), nullable=True, index=True
     )
