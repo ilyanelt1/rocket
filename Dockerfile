@@ -11,8 +11,6 @@ RUN python -m pip install --no-cache-dir --upgrade pip \
 
 COPY app ./app
 COPY templates ./templates
-COPY tests ./tests
-COPY README.md .
 
 EXPOSE 8005
 
