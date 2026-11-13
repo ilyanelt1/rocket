@@ -275,6 +275,10 @@ def dashboard(
             "transit": transit,
             "names": names,
             "product_names": product_names,
+            "products_by_id": {product.id: product for product in products},
+            "warehouses_by_id": {
+                warehouse.id: warehouse for warehouse in warehouses + archived
+            },
             "error": None,
         },
     )
