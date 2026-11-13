@@ -42,7 +42,7 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 docker compose up --build
 ```
 
-После старта приложение доступно по адресу http://localhost:8005. Страница входа: http://localhost:8005/login. Контейнер приложения использует Python 3.14.2, ждёт готовности PostgreSQL 16, создаёт таблицы и запускает воспроизводимый seed перед Uvicorn. Seed не перезаписывает уже существующие остатки и операции, поэтому повторный запуск не сбрасывает рабочие данные.
+После старта приложение доступно по адресу http://localhost:8005. Страница входа: http://localhost:8005/login. Compose сначала дожидается готовности PostgreSQL 16, затем запускает одноразовый сервис `init`: он создаёт недостающую схему, применяет текущие совместимые изменения и выполняет воспроизводимый seed. Только после успешного завершения `init` запускается `web` с Uvicorn. Seed не перезаписывает уже существующие остатки и операции, поэтому повторный запуск не сбрасывает рабочие данные.
 
 Остановка: `docker compose down`. Для полного сброса БД вместе с volume: `docker compose down -v` (удалит все данные).
 
@@ -56,7 +56,7 @@ Seed создаёт товары и два ФФ — «Север» и «Юг»:
 | SKU-102 | Контейнер | 5 | 0 |
 | SKU-103 | Корзина | 0 | 4 |
 
-Seed запускается автоматически при старте контейнера. Вручную: `docker compose exec web python -m app.seed`.
+Seed выполняется одноразовым сервисом `init`. Повторно запустить инициализацию вручную можно командой `docker compose run --rm init`.
 
 ## Тесты и проверки качества
 
@@ -80,7 +80,7 @@ Docker Compose smoke test не запускается в pre-commit: он вып
 
 GitHub Actions автоматически запускает проверки при push в `main`/`feature/**` и при создании pull request в `main`. CI использует Python 3.14.2 и разделён на два последовательных job:
 
-- **Pre-commit, lint and unit tests:** `pre-commit run --all-files` проверяет форматирование и Ruff, YAML/TOML, пробелы, конфликты слияния, приватные ключи, размер новых файлов и Docker Compose smoke test; затем `compileall` и `pytest`.
+- **Pre-commit, lint and unit tests:** `pre-commit run --all-files` проверяет форматирование и Ruff, YAML/TOML, пробелы, конфликты слияния, приватные ключи и размер новых файлов; затем `compileall` и `pytest`.
 - **Docker Compose smoke test:** собирает образы, ждёт healthy-состояния PostgreSQL и web, запускает `scripts/smoke.py`.
 
 Локально установи git hook командой `pre-commit install`. Перед коммитом выполняются быстрые проверки форматирования, Ruff и структуры файлов; полный прогон — `pre-commit run --all-files`. Docker smoke и PostgreSQL integration suite выполняются в CI.

@@ -2,8 +2,6 @@ import csv
 import io
 import os
 import secrets
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Annotated
 from pydantic import BeforeValidator
@@ -18,8 +16,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .audit import record_audit_event
 from .auth import get_current_user, require_roles
-from .db import Base, engine, get_db
-from .migrations import apply_schema_migrations
+from .db import get_db
 from .models import AuditLog, Operation, Product, StockBalance, User, Warehouse
 from .services import (
     StockError,
@@ -43,30 +40,7 @@ def empty_string_to_none(value):
 OptionalFormInt = Annotated[int | None, BeforeValidator(empty_string_to_none)]
 
 
-@asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    Base.metadata.create_all(bind=engine)
-    apply_schema_migrations(engine)
-    username = os.getenv("ADMIN_USERNAME")
-    password = os.getenv("ADMIN_PASSWORD")
-    if username and password:
-        from .auth import hash_password
-        from .db import SessionLocal
-
-        with SessionLocal.begin() as db:
-            admin = db.scalar(select(User).where(User.username == username))
-            if admin is None:
-                db.add(
-                    User(
-                        username=username,
-                        password_hash=hash_password(password),
-                        role="admin",
-                    )
-                )
-    yield
-
-
-app = FastAPI(title="CheckStock", lifespan=lifespan)
+app = FastAPI(title="CheckStock")
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SESSION_SECRET") or secrets.token_urlsafe(32),
