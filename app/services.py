@@ -91,6 +91,12 @@ def _run(
     actor_user_id: int | None = None,
 ):
     try:
+        # Idempotent retries must return the original operation without
+        # generating a second audit event.
+        existing = _existing(db, key)
+        if existing is not None:
+            return existing
+
         result = action()
         if actor_user_id is not None:
             db.add(
