@@ -54,6 +54,73 @@ docker compose up --build
 
 Остановка: `docker compose down`. Для полного сброса БД вместе с volume: `docker compose down -v` (удалит все данные).
 
+## Production-профиль Docker Compose
+
+Для отдельного production-профиля используется `compose.prod.yml`. Он не изменяет основной `docker-compose.yml`, который остаётся конфигурацией для разработки и локальных проверок.
+
+Перед запуском создай или проверь файл `.env`. Для production обязательно задай уникальные значения:
+
+- `POSTGRES_PASSWORD` — пароль PostgreSQL;
+- `ADMIN_PASSWORD` — пароль первого администратора (не менее 12 символов);
+- `SESSION_SECRET` — секрет с длиной не менее 32 символов;
+- при необходимости `POSTGRES_DB`, `POSTGRES_USER`, `ADMIN_USERNAME`.
+
+Для пароля PostgreSQL используй URL-safe значение, например результат `secrets.token_urlsafe(32)`: пароль подставляется в `DATABASE_URL`.
+
+Запуск в Windows PowerShell:
+
+```powershell
+docker compose -f compose.prod.yml config
+docker compose -f compose.prod.yml up --build -d --wait
+docker compose -f compose.prod.yml ps
+```
+
+По умолчанию приложение доступно на `http://127.0.0.1:8005`. Порт привязан только к loopback-интерфейсу хоста, поэтому приложение не публикуется напрямую для других устройств сети. Если порт 8005 занят, выбери другой свободный порт, например:
+
+```powershell
+$env:WEB_PORT="8006"
+docker compose -f compose.prod.yml config
+docker compose -f compose.prod.yml up --build -d --wait
+```
+
+После этого приложение будет доступно на `http://127.0.0.1:8006`. Переменная действует в текущем окне PowerShell.
+
+В production-профиле:
+
+- PostgreSQL не публикует порт на хост; к нему подключаются только сервисы внутренней Docker-сети.
+- Одноразовый сервис `init` ждёт готовности PostgreSQL, выполняет `alembic upgrade head` и seed. Web запускается только после успешного завершения инициализации.
+- Web работает от непривилегированного пользователя, с read-only файловой системой, ограниченными Linux capabilities и запретом повышения привилегий.
+- Для контейнеров заданы health checks, restart policy и ограничения ресурсов; логи Docker ротируются.
+- Данные PostgreSQL хранятся в отдельном именованном volume `postgres_data`.
+
+Проверка состояния и просмотр логов:
+
+```powershell
+docker compose -f compose.prod.yml ps
+docker compose -f compose.prod.yml logs --tail=100 web
+docker compose -f compose.prod.yml logs --tail=100 init
+Invoke-RestMethod http://127.0.0.1:8005/health/live
+Invoke-RestMethod http://127.0.0.1:8005/health/ready
+```
+
+Если задан `WEB_PORT`, подставь его значение в URL health checks. Остановка без удаления данных:
+
+```powershell
+docker compose -f compose.prod.yml down
+```
+
+Полное удаление production-БД вместе с данными:
+
+```powershell
+docker compose -f compose.prod.yml down -v
+```
+
+**Внимание:** `down -v` удаляет volume PostgreSQL и все данные без возможности восстановления без резервной копии.
+
+Этот профиль привязывает web к localhost и сам по себе не настраивает публичный HTTPS-доступ. Если потребуется публикация через reverse proxy, настрой TLS, установи `COOKIE_SECURE=true` для приложения и проверь конфигурацию proxy и доверенных заголовков. Не открывай порт приложения или PostgreSQL напрямую в интернет.
+
+Резервные копии: текущий `scripts/db_backup.py` вызывает Compose без `-f compose.prod.yml`, поэтому его команды по умолчанию работают с основным `docker-compose.yml`, а не с production-профилем. Не запускай эти команды как backup production-БД без отдельной настройки скрипта под production Compose.
+
 ## Начальные данные
 
 Seed создаёт товары и два ФФ — «Север» и «Юг»:
