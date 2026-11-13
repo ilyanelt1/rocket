@@ -2,15 +2,12 @@ import os
 
 from sqlalchemy import select
 
-from .db import Base, SessionLocal, engine
-from .migrations import apply_schema_migrations
 from .auth import hash_password
+from .db import SessionLocal
 from .models import Product, StockBalance, User, Warehouse
 
 
 def seed():
-    Base.metadata.create_all(bind=engine)
-    apply_schema_migrations(engine)
     with SessionLocal.begin() as db:
         products = [
             ("SKU-101", "Органайзер"),
