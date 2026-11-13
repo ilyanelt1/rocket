@@ -51,6 +51,15 @@ def test_alembic_upgrade_preserves_existing_data_and_creates_schema(
             column["name"] for column in inspector.get_columns("products")
         }
         assert "minimum_stock" in product_columns
+        operation_indexes = {
+            index["name"] for index in inspector.get_indexes("operations")
+        }
+        audit_indexes = {
+            index["name"] for index in inspector.get_indexes("audit_logs")
+        }
+        assert "ix_operations_history_created_id" in operation_indexes
+        assert "ix_operations_product_created_at" in operation_indexes
+        assert "ix_audit_logs_entity_id" in audit_indexes
 
         if existing_schema:
             with Session(engine) as db:
