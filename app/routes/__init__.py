@@ -1,1 +1,1 @@
-
+"""Application route modules."""
