@@ -13,7 +13,7 @@ def health_live():
     return {"status": "ok"}
 
 
-@app.get("/health/ready", include_in_schema=False)
+@router.get("/health/ready", include_in_schema=False)
 def health_ready(db: Session = Depends(get_db)):
     try:
         db.execute(text("SELECT 1"))
