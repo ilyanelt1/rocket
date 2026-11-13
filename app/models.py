@@ -39,7 +39,7 @@ class StockBalance(Base):
     __tablename__ = "stock_balances"
     __table_args__ = (UniqueConstraint("product_id", "warehouse_id"),)
     id: Mapped[int] = mapped_column(primary_key=True)
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
     warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"))
     physical_qty: Mapped[int] = mapped_column(Integer, default=0)
     reserved_qty: Mapped[int] = mapped_column(Integer, default=0)
@@ -56,17 +56,17 @@ class Operation(Base):
     status: Mapped[str] = mapped_column(String(24), index=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
     source_warehouse_id: Mapped[int | None] = mapped_column(
-        ForeignKey("warehouses.id"), nullable=True
+        ForeignKey("warehouses.id"), nullable=True, index=True
     )
     destination_warehouse_id: Mapped[int | None] = mapped_column(
-        ForeignKey("warehouses.id"), nullable=True
+        ForeignKey("warehouses.id"), nullable=True, index=True
     )
     qty: Mapped[int] = mapped_column(Integer)
     idempotency_key: Mapped[str | None] = mapped_column(
         String(120), unique=True, nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow
+        DateTime(timezone=True), default=utcnow, index=True
     )
     confirmed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -97,7 +97,7 @@ class AuditLog(Base):
     )
     action: Mapped[str] = mapped_column(String(80), index=True)
     entity_type: Mapped[str] = mapped_column(String(40))
-    entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     details: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, index=True
