@@ -1,3 +1,5 @@
+import csv
+import io
 from datetime import datetime, timedelta, timezone
 
 from app.models import AuditLog, Operation, Product, Warehouse
@@ -152,9 +154,11 @@ def test_history_and_export_use_the_same_filters(auth_client):
     assert page.status_code == 200
     assert export.status_code == 200
     assert f"<tr><td>{operations[1].id}</td>" in page.text
-    assert str(operations[1].id) in export.text
-    assert str(operations[0].id) not in export.text
-    assert str(operations[2].id) not in export.text
+    exported_rows = list(
+        csv.reader(io.StringIO(export.text.lstrip("\\ufeff")), delimiter=";")
+    )
+    exported_ids = {int(row[0]) for row in exported_rows[1:]}
+    assert exported_ids == {operations[1].id}
 
 
 def test_history_export_escapes_formula_after_leading_whitespace(auth_client):
