@@ -68,6 +68,7 @@ jobs:
       SESSION_SECRET: ci-session-secret-not-used-outside-tests-123456
       ADMIN_USERNAME: ci-admin
       ADMIN_PASSWORD: ci-admin-password-123456
+      POSTGRES_PASSWORD: ci-postgres-password-123456
       COOKIE_SECURE: "false"
     steps:
       - name: Checkout repository

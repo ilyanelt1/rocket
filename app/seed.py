@@ -1,8 +1,11 @@
+import os
+
 from sqlalchemy import select
 
 from .db import Base, SessionLocal, engine
 from .migrations import apply_schema_migrations
-from .models import Product, StockBalance, Warehouse
+from .auth import hash_password
+from .models import Product, StockBalance, User, Warehouse
 
 
 def seed():
@@ -52,6 +55,20 @@ def seed():
                         warehouse_id=warehouses_by_name[warehouse_name].id,
                         physical_qty=qty,
                         reserved_qty=0,
+                    )
+                )
+
+    username = os.getenv("ADMIN_USERNAME")
+    password = os.getenv("ADMIN_PASSWORD")
+    if username and password:
+        with SessionLocal.begin() as db:
+            admin = db.scalar(select(User).where(User.username == username))
+            if admin is None:
+                db.add(
+                    User(
+                        username=username,
+                        password_hash=hash_password(password),
+                        role="admin",
                     )
                 )
 

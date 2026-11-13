@@ -91,24 +91,38 @@ def _run(
     actor_user_id: int | None = None,
 ):
     try:
+        # Idempotent retries must return the original operation without
+        # generating a second audit event.
+        existing = _existing(db, key)
+        if existing is not None:
+            return existing
+
         result = action()
         if actor_user_id is not None:
-            db.add(
-                AuditLog(
-                    actor_user_id=actor_user_id,
-                    action=f"stock.{result.type.lower()}",
-                    entity_type="operation",
-                    entity_id=result.id,
-                    details={
-                        "operation_type": result.type,
-                        "status": result.status,
-                        "product_id": result.product_id,
-                        "quantity": result.qty,
-                        "source_warehouse_id": result.source_warehouse_id,
-                        "destination_warehouse_id": result.destination_warehouse_id,
-                    },
+            existing_audit = db.scalar(
+                select(AuditLog.id).where(
+                    AuditLog.entity_type == "operation",
+                    AuditLog.entity_id == result.id,
+                    AuditLog.action == f"stock.{result.type.lower()}",
                 )
             )
+            if existing_audit is None:
+                db.add(
+                    AuditLog(
+                        actor_user_id=actor_user_id,
+                        action=f"stock.{result.type.lower()}",
+                        entity_type="operation",
+                        entity_id=result.id,
+                        details={
+                            "operation_type": result.type,
+                            "status": result.status,
+                            "product_id": result.product_id,
+                            "quantity": result.qty,
+                            "source_warehouse_id": result.source_warehouse_id,
+                            "destination_warehouse_id": result.destination_warehouse_id,
+                        },
+                    )
+                )
         db.commit()
         return result
     except Exception:
