@@ -9,6 +9,7 @@ from ..templating import templates
 
 router = APIRouter()
 
+
 @router.get("/")
 def dashboard(
     request: Request,

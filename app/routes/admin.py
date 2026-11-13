@@ -7,11 +7,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..audit import record_audit_event
-from ..auth import hash_password, require_roles
+from ..auth import require_roles
 from ..db import get_db
 from ..models import Product, User, Warehouse
 
 router = APIRouter()
+
 
 def _lock_active_admins(db: Session) -> list[User]:
     return db.scalars(
@@ -21,6 +22,7 @@ def _lock_active_admins(db: Session) -> list[User]:
         .with_for_update()
         .execution_options(populate_existing=True)
     ).all()
+
 
 @router.post("/products/{product_id}/minimum-stock")
 def update_product_minimum_stock(

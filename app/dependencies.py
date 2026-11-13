@@ -1,5 +1,6 @@
 from fastapi import HTTPException
 
+
 def parse_optional_form_int(value: str | None, field_name: str) -> int | None:
     if value is None or not value.strip():
         return None

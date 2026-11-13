@@ -7,7 +7,8 @@ from ..db import get_db
 
 router = APIRouter()
 
-@app.get("/health/live", include_in_schema=False)
+
+@router.get("/health/live", include_in_schema=False)
 def health_live():
     return {"status": "ok"}
 

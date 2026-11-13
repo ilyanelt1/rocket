@@ -11,6 +11,7 @@ from ..templating import templates
 
 router = APIRouter()
 
+
 @router.get("/login")
 def login_page(request: Request):
     if request.session.get("user_id"):
