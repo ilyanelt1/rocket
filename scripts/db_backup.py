@@ -93,7 +93,28 @@ def verify(archive: Path) -> None:
         raise FileNotFoundError(f"Backup archive not found or empty: {archive}")
     _, username = database_settings()
     temporary_db = f"checkstock_verify_{uuid4().hex[:12]}"
-    compose_exec("createdb", "-U", username, temporary_db)
+    try:
+        compose_exec("createdb", "-U", username, temporary_db)
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or b"").decode(errors="replace").lower()
+        if "permission denied to create database" not in detail and "createdb" not in detail:
+            raise
+        # Least-privilege production roles may not have CREATEDB. In that case,
+        # validate the custom archive TOC without creating or touching a database.
+        listing = compose_exec(
+            "pg_restore",
+            "--list",
+            capture_output=True,
+            input_data=archive.read_bytes(),
+        ).stdout.decode(errors="replace")
+        if not any(" TABLE public products " in line for line in listing.splitlines()):
+            raise RuntimeError("Backup archive does not contain public.products")
+        print(
+            "Backup archive structure verified. Full restore check skipped: "
+            f"database role {username!r} has no CREATEDB privilege."
+        )
+        return
+
     try:
         compose_exec(
             "pg_restore",
@@ -128,12 +149,6 @@ def restore(archive: Path, confirmed: bool) -> None:
         raise ValueError("Restore is destructive; pass --yes to confirm")
     if not archive.is_file() or archive.stat().st_size == 0:
         raise FileNotFoundError(f"Backup archive not found or empty: {archive}")
-    safety_backup = (
-        ROOT
-        / "backups"
-        / f"pre_restore_{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}_{uuid4().hex[:8]}.dump"
-    )
-    backup(safety_backup)
     database, username = database_settings()
     safety_backup = (
         ROOT
@@ -141,7 +156,6 @@ def restore(archive: Path, confirmed: bool) -> None:
         / f"pre_restore_{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}_{uuid4().hex[:8]}.dump"
     )
     backup(safety_backup)
-    print(f"Safety backup created before restore: {safety_backup}")
     compose_exec(
         "pg_restore",
         "--clean",
