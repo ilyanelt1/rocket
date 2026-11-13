@@ -879,54 +879,60 @@ def create_operation(
     user: User = Depends(require_roles("admin", "warehouse_manager", "operator")),
     db: Session = Depends(get_db),
 ):
-    try:
-        if kind == "RECEIPT":
-            receipt(
-                db,
-                product_id,
-                warehouse_id,
-                qty,
-                idempotency_key,
-                actor_user_id=user.id,
-            )
-        elif kind == "FBS_RESERVE":
-            reserve_fbs(
-                db,
-                product_id,
-                warehouse_id,
-                qty,
-                idempotency_key,
-                actor_user_id=user.id,
-            )
-        elif kind == "FBS_CANCEL":
-            cancel_fbs(db, reserve_id, idempotency_key, actor_user_id=user.id)
-        elif kind == "FBS_SHIP":
-            ship_fbs(db, reserve_id, idempotency_key, actor_user_id=user.id)
-        elif kind == "TRANSFER":
-            transfer(
-                db,
-                product_id,
-                warehouse_id,
-                destination_id,
-                qty,
-                idempotency_key,
-                actor_user_id=user.id,
-            )
-        elif kind == "FBO_SEND":
-            fbo_send(
-                db,
-                product_id,
-                warehouse_id,
-                qty,
-                idempotency_key,
-                actor_user_id=user.id,
-            )
-        elif kind == "ACCEPT":
-            accept_movement(db, operation_id, idempotency_key, actor_user_id=user.id)
-        else:
-            raise StockError("Неизвестный тип операции.")
-    except TypeError as exc:
-        raise HTTPException(409, "Некорректные параметры операции.") from exc
+    if kind in {"RECEIPT", "FBS_RESERVE", "FBO_SEND"} and warehouse_id is None:
+        raise HTTPException(422, "Для этой операции необходимо выбрать склад.")
+    if kind == "TRANSFER" and (warehouse_id is None or destination_id is None):
+        raise HTTPException(422, "Для перемещения необходимо выбрать оба склада.")
+    if kind in {"FBS_CANCEL", "FBS_SHIP"} and reserve_id is None:
+        raise HTTPException(422, "Необходимо указать ID резерва.")
+    if kind == "ACCEPT" and operation_id is None:
+        raise HTTPException(422, "Необходимо указать ID операции в пути.")
+
+    if kind == "RECEIPT":
+        receipt(
+            db,
+            product_id,
+            warehouse_id,
+            qty,
+            idempotency_key,
+            actor_user_id=user.id,
+        )
+    elif kind == "FBS_RESERVE":
+        reserve_fbs(
+            db,
+            product_id,
+            warehouse_id,
+            qty,
+            idempotency_key,
+            actor_user_id=user.id,
+        )
+    elif kind == "FBS_CANCEL":
+        cancel_fbs(db, reserve_id, idempotency_key, actor_user_id=user.id)
+    elif kind == "FBS_SHIP":
+        ship_fbs(db, reserve_id, idempotency_key, actor_user_id=user.id)
+    elif kind == "TRANSFER":
+        transfer(
+            db,
+            product_id,
+            warehouse_id,
+            destination_id,
+            qty,
+            idempotency_key,
+            actor_user_id=user.id,
+        )
+    elif kind == "FBO_SEND":
+        fbo_send(
+            db,
+            product_id,
+            warehouse_id,
+            qty,
+            idempotency_key,
+            actor_user_id=user.id,
+        )
+    elif kind == "ACCEPT":
+        accept_movement(db, operation_id, idempotency_key, actor_user_id=user.id)
+    else:
+        raise StockError("Неизвестный тип операции.")
     return RedirectResponse("/", status_code=303)
 
 
