@@ -155,7 +155,7 @@ def test_history_and_export_use_the_same_filters(auth_client):
     assert export.status_code == 200
     assert f"<tr><td>{operations[1].id}</td>" in page.text
     exported_rows = list(
-        csv.reader(io.StringIO(export.text.lstrip("\\ufeff")), delimiter=";")
+        csv.reader(io.StringIO(export.text.lstrip("\ufeff")), delimiter=";")
     )
     exported_ids = {int(row[0]) for row in exported_rows[1:]}
     assert exported_ids == {operations[1].id}
@@ -171,7 +171,7 @@ def test_history_export_escapes_formula_after_leading_whitespace(auth_client):
     response = client.get("/history/export", params={"q": "1+1"})
 
     assert response.status_code == 200
-    assert response.content.startswith(b"\\xef\\xbb\\xbf")
+    assert response.content.startswith(b"\xef\xbb\xbf")
     assert "' =1+1" in response.text
 
 
