@@ -94,7 +94,7 @@ def verify(archive: Path) -> None:
     _, username = database_settings()
     temporary_db = f"checkstock_verify_{uuid4().hex[:12]}"
     try:
-        compose_exec("createdb", "-U", username, temporary_db)
+        compose_exec("createdb", "-U", username, temporary_db, capture_output=True)
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or b"").decode(errors="replace").lower()
         if "permission denied to create database" not in detail and "createdb" not in detail:
