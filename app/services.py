@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .models import AuditLog, Operation, StockBalance, Warehouse
@@ -37,14 +38,23 @@ def _balance(
 
     balance = db.scalar(statement)
     if balance is None:
-        balance = StockBalance(
+        candidate = StockBalance(
             product_id=product_id,
             warehouse_id=warehouse_id,
             physical_qty=0,
             reserved_qty=0,
         )
-        db.add(balance)
-        db.flush()
+        try:
+            # The unique pair may be inserted concurrently. Isolate the insert
+            # in a savepoint so a losing transaction can continue safely.
+            with db.begin_nested():
+                db.add(candidate)
+                db.flush()
+            balance = candidate
+        except IntegrityError:
+            balance = db.scalar(statement.with_for_update())
+            if balance is None:
+                raise
 
     return balance
 
@@ -94,7 +104,7 @@ def _record(
         idempotency_key=key,
         note=note,
         related_operation_id=related,
-        confirmed_at=(datetime.now(timezone.utc) if status == "DONE" else None),
+        confirmed_at=(datetime.now(timezone.utc) if status in {"DONE", "SHIPPED"} else None),
     )
     db.add(operation)
     db.flush()
@@ -119,7 +129,6 @@ def _run(
         result = action()
         new_operation_ids = db.info.setdefault("_new_operation_ids", set())
         is_new_operation = result.id in new_operation_ids
-        new_operation_ids.discard(result.id)
         if actor_user_id is not None and is_new_operation:
             db.add(
                 AuditLog(
@@ -138,6 +147,7 @@ def _run(
                 )
             )
         db.commit()
+        db.info.pop("_new_operation_ids", None)
         return result
     except Exception:
         db.rollback()
@@ -463,50 +473,54 @@ def accept_movement(
 
 
 def reconcile(db: Session, product_id: int):
-    physical = sum(
-        db.scalars(
-            select(StockBalance.physical_qty).where(
-                StockBalance.product_id == product_id
-            )
-        ).all()
+    # One SQL statement gives all aggregates the same READ COMMITTED snapshot.
+    physical = (
+        select(func.coalesce(func.sum(StockBalance.physical_qty), 0))
+        .where(StockBalance.product_id == product_id)
+        .scalar_subquery()
+    )
+    transfer_transit = (
+        select(func.coalesce(func.sum(Operation.qty), 0))
+        .where(
+            Operation.product_id == product_id,
+            Operation.type.in_(("TRANSFER", "FBO_SEND")),
+            Operation.status == "IN_TRANSIT",
+        )
+        .scalar_subquery()
+    )
+    fbs_transit = (
+        select(func.coalesce(func.sum(Operation.qty), 0))
+        .where(
+            Operation.product_id == product_id,
+            Operation.type == "FBS_SHIP",
+            Operation.status == "SHIPPED",
+        )
+        .scalar_subquery()
+    )
+    fbo_accepted = (
+        select(func.coalesce(func.sum(Operation.qty), 0))
+        .where(
+            Operation.product_id == product_id,
+            Operation.type == "FBO_SEND",
+            Operation.status == "ACCEPTED",
+        )
+        .scalar_subquery()
     )
 
-    transfer_transit = sum(
-        db.scalars(
-            select(Operation.qty).where(
-                Operation.product_id == product_id,
-                Operation.type.in_(("TRANSFER", "FBO_SEND")),
-                Operation.status == "IN_TRANSIT",
-            )
-        ).all()
-    )
+    totals = db.execute(
+        select(
+            physical.label("physical"),
+            transfer_transit.label("transfer_transit"),
+            fbs_transit.label("fbs_transit"),
+            fbo_accepted.label("fbo_accepted"),
+        )
+    ).one()
 
-    fbs_transit = sum(
-        db.scalars(
-            select(Operation.qty).where(
-                Operation.product_id == product_id,
-                Operation.type == "FBS_SHIP",
-                Operation.status == "SHIPPED",
-            )
-        ).all()
-    )
-
-    fbo_accepted = sum(
-        db.scalars(
-            select(Operation.qty).where(
-                Operation.product_id == product_id,
-                Operation.type == "FBO_SEND",
-                Operation.status == "ACCEPTED",
-            )
-        ).all()
-    )
-
-    transit = transfer_transit + fbs_transit
-
+    transit = totals.transfer_transit + totals.fbs_transit
     return {
         "product_id": product_id,
-        "physical": physical,
+        "physical": totals.physical,
         "in_transit": transit,
-        "fbo_accepted": fbo_accepted,
-        "total": physical + transit + fbo_accepted,
+        "fbo_accepted": totals.fbo_accepted,
+        "total": totals.physical + transit + totals.fbo_accepted,
     }
