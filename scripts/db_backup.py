@@ -118,7 +118,7 @@ def restore(archive: Path, confirmed: bool) -> None:
     safety_backup = (
         ROOT
         / "backups"
-        / f"pre_restore_{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}.dump"
+        / f"pre_restore_{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}_{uuid4().hex[:8]}.dump"
     )
     backup(safety_backup)
     print(f"Safety backup created before restore: {safety_backup}")
