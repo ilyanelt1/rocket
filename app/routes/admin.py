@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..audit import record_audit_event
-from ..auth import require_roles
+from ..auth import hash_password, require_roles
 from ..db import get_db
 from ..models import Product, User, Warehouse
 
@@ -132,8 +132,6 @@ def create_user(
     user: User = Depends(require_roles("admin")),
     db: Session = Depends(get_db),
 ):
-    from .auth import hash_password
-
     cleaned_username = username.strip()
     if len(cleaned_username) < 3 or len(cleaned_username) > 80:
         raise HTTPException(422, "Логин должен содержать от 3 до 80 символов")
