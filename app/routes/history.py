@@ -14,6 +14,75 @@ from ..templating import templates
 
 
 router = APIRouter()
+
+
+ALLOWED_OPERATION_TYPES = {
+    "RECEIPT",
+    "TRANSFER",
+    "TRANSFER_RECEIVE",
+    "FBS_RESERVE",
+    "FBS_CANCEL",
+    "FBS_SHIP",
+    "FBO_SEND",
+    "FBO_ACCEPT",
+}
+ALLOWED_STATUSES = {"DONE", "IN_TRANSIT", "ACCEPTED", "CANCELLED", "SHIPPED"}
+
+
+def _build_filters(
+    q: str,
+    product_id: int | None,
+    operation_type: str,
+    status: str,
+    warehouse_id: int | None,
+    date_from: date | None,
+    date_to: date | None,
+):
+    if operation_type and operation_type not in ALLOWED_OPERATION_TYPES:
+        raise HTTPException(422, "Неизвестный тип операции")
+    if status and status not in ALLOWED_STATUSES:
+        raise HTTPException(422, "Неизвестный статус")
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(422, "Начальная дата не может быть позже конечной")
+
+    filters = []
+    if q.strip():
+        term = f"%{q.strip()}%"
+        filters.append(
+            or_(
+                Product.sku.ilike(term),
+                Product.name.ilike(term),
+                Operation.note.ilike(term),
+            )
+        )
+    if product_id is not None:
+        filters.append(Operation.product_id == product_id)
+    if operation_type:
+        filters.append(Operation.type == operation_type)
+    if status:
+        filters.append(Operation.status == status)
+    if warehouse_id is not None:
+        filters.append(
+            or_(
+                Operation.source_warehouse_id == warehouse_id,
+                Operation.destination_warehouse_id == warehouse_id,
+            )
+        )
+    if date_from:
+        filters.append(
+            Operation.created_at
+            >= datetime.combine(date_from, time.min, tzinfo=timezone.utc)
+        )
+    if date_to:
+        filters.append(
+            Operation.created_at
+            < datetime.combine(
+                date_to + timedelta(days=1), time.min, tzinfo=timezone.utc
+            )
+        )
+    return filters
+
+
 @router.get("/history")
 def operation_history(
     request: Request,
