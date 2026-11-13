@@ -1,22 +1,21 @@
 import os
-import secrets
 from datetime import datetime, timezone
 from typing import Annotated
 from pydantic import BeforeValidator
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from .audit import record_audit_event
-from .auth import get_current_user, require_roles
+from .auth import get_current_user, require_roles, verify_password, verify_dummy_password
 from .db import get_db
 from .models import AuditLog, Operation, Product, StockBalance, User, Warehouse
 from .routes.history import router as history_router
+from .templating import templates
 from .services import (
     StockError,
     accept_movement,
@@ -39,14 +38,22 @@ def empty_string_to_none(value):
 OptionalFormInt = Annotated[int | None, BeforeValidator(empty_string_to_none)]
 
 
+def _get_session_secret() -> str:
+    secret = os.getenv("SESSION_SECRET")
+    if not secret:
+        raise RuntimeError("SESSION_SECRET is required; configure a stable secret.")
+    if len(secret) < 32:
+        raise RuntimeError("SESSION_SECRET must contain at least 32 characters.")
+    return secret
+
+
 app = FastAPI(title="CheckStock")
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.getenv("SESSION_SECRET") or secrets.token_urlsafe(32),
+    secret_key=_get_session_secret(),
     https_only=os.getenv("COOKIE_SECURE", "false").lower() == "true",
     same_site="lax",
 )
-templates = Jinja2Templates(directory="templates")
 app.include_router(history_router)
 
 
@@ -114,14 +121,13 @@ def login(
     password: str = Form(...),
     db: Session = Depends(get_db),
 ):
-    from .auth import verify_password
-
     user = db.scalar(select(User).where(User.username == username.strip()))
-    if (
-        user is None
-        or not user.is_active
-        or not verify_password(password, user.password_hash)
-    ):
+    password_valid = (
+        verify_password(password, user.password_hash)
+        if user is not None and user.is_active
+        else verify_dummy_password(password) is None
+    )
+    if user is None or not user.is_active or not password_valid:
         return templates.TemplateResponse(
             request,
             "login.html",
