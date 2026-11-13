@@ -871,12 +871,20 @@ def create_operation(
 
     if kind == "RECEIPT":
         receipt(
-            db, product_id, warehouse_id, qty, idempotency_key,
+            db,
+            product_id,
+            warehouse_id,
+            qty,
+            idempotency_key,
             actor_user_id=user.id,
         )
     elif kind == "FBS_RESERVE":
         reserve_fbs(
-            db, product_id, warehouse_id, qty, idempotency_key,
+            db,
+            product_id,
+            warehouse_id,
+            qty,
+            idempotency_key,
             actor_user_id=user.id,
         )
     elif kind == "FBS_CANCEL":
@@ -885,12 +893,21 @@ def create_operation(
         ship_fbs(db, reserve_id, idempotency_key, actor_user_id=user.id)
     elif kind == "TRANSFER":
         transfer(
-            db, product_id, warehouse_id, destination_id, qty, idempotency_key,
+            db,
+            product_id,
+            warehouse_id,
+            destination_id,
+            qty,
+            idempotency_key,
             actor_user_id=user.id,
         )
     elif kind == "FBO_SEND":
         fbo_send(
-            db, product_id, warehouse_id, qty, idempotency_key,
+            db,
+            product_id,
+            warehouse_id,
+            qty,
+            idempotency_key,
             actor_user_id=user.id,
         )
     elif kind == "ACCEPT":
