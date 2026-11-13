@@ -5,8 +5,8 @@ from datetime import date, datetime, time, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import aliased, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session, aliased
 
 from ..auth import get_current_user
 from ..db import get_db
