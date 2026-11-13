@@ -1,9 +1,10 @@
 import os
+import secrets
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
 import pytest
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.orm import sessionmaker
 
 from app.db import Base
@@ -24,52 +25,65 @@ def postgres_db():
     if not TEST_DATABASE_URL:
         pytest.skip("TEST_DATABASE_URL is not configured")
 
-    engine = create_engine(
+    admin_engine = create_engine(
         TEST_DATABASE_URL,
         pool_pre_ping=True,
         connect_args={"connect_timeout": 5},
     )
+    schema_name = f"checkstock_test_{secrets.token_hex(8)}"
 
-    Base.metadata.drop_all(engine)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
 
-    Base.metadata.create_all(engine)
+    engine = create_engine(
+        TEST_DATABASE_URL,
+        pool_pre_ping=True,
+        connect_args={
+            "connect_timeout": 5,
+            "options": f"-csearch_path={schema_name},public",
+        },
+    )
 
-    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+    try:
+        Base.metadata.create_all(engine)
+        session_factory = sessionmaker(bind=engine, expire_on_commit=False)
 
-    with session_factory.begin() as db:
-        product = Product(sku="PG-LOCK-101", name="PostgreSQL lock test")
-        north = Warehouse(name="PG Север")
-        south = Warehouse(name="PG Юг")
-        db.add_all([product, north, south])
-        db.flush()
+        with session_factory.begin() as db:
+            product = Product(sku="PG-LOCK-101", name="PostgreSQL lock test")
+            north = Warehouse(name="PG Север")
+            south = Warehouse(name="PG Юг")
+            db.add_all([product, north, south])
+            db.flush()
 
-        db.add_all(
-            [
-                StockBalance(
-                    product_id=product.id,
-                    warehouse_id=north.id,
-                    physical_qty=10,
-                    reserved_qty=0,
-                ),
-                StockBalance(
-                    product_id=product.id,
-                    warehouse_id=south.id,
-                    physical_qty=0,
-                    reserved_qty=0,
-                ),
-            ]
-        )
+            db.add_all(
+                [
+                    StockBalance(
+                        product_id=product.id,
+                        warehouse_id=north.id,
+                        physical_qty=10,
+                        reserved_qty=0,
+                    ),
+                    StockBalance(
+                        product_id=product.id,
+                        warehouse_id=south.id,
+                        physical_qty=0,
+                        reserved_qty=0,
+                    ),
+                ]
+            )
 
-        ids = {
-            "product": product.id,
-            "north": north.id,
-            "south": south.id,
-        }
+            ids = {
+                "product": product.id,
+                "north": north.id,
+                "south": south.id,
+            }
 
-    yield engine, session_factory, ids
-
-    Base.metadata.drop_all(engine)
-    engine.dispose()
+        yield engine, session_factory, ids
+    finally:
+        engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
+        admin_engine.dispose()
 
 
 def _create_movement(session_factory, ids):
