@@ -42,7 +42,7 @@
 </div>
 </section>
 <section id="stock" class="mb-4"><h4>Остатки по складам</h4><div class="card p-3"><div class="table-responsive"><table class="table table-hover"><thead><tr><th>SKU</th><th>Товар</th><th>ФФ</th><th>Физически</th><th>Доступно</th><th>Резерв FBS</th></tr></thead><tbody>
-{% for b in balances %}{% set p = products|selectattr("id","equalto",b.product_id)|first %}{% set w = (warehouses|list + archived|list)|selectattr("id","equalto",b.warehouse_id)|first %}<tr><td>{{p.sku}}</td><td>{{p.name}}</td><td>{{w.name}}{% if w.deleted_at %} <span class="badge text-bg-secondary">Архив</span>{% endif %}</td><td>{{b.physical_qty}}</td><td>{{b.available_qty}}</td><td>{{b.reserved_qty}}</td></tr>{% else %}<tr><td colspan="6" class="text-center muted">Остатков пока нет</td></tr>{% endfor %}</tbody></table></div></div>
+{% for b in balances %}{% set p = products_by_id.get(b.product_id) %}{% set w = warehouses_by_id.get(b.warehouse_id) %}<tr><td>{{p.sku}}</td><td>{{p.name}}</td><td>{{w.name}}{% if w.deleted_at %} <span class="badge text-bg-secondary">Архив</span>{% endif %}</td><td>{{b.physical_qty}}</td><td>{{b.available_qty}}</td><td>{{b.reserved_qty}}</td></tr>{% else %}<tr><td colspan="6" class="text-center muted">Остатков пока нет</td></tr>{% endfor %}</tbody></table></div></div>
 <div class="row g-3 mt-1">{% for label, types in [("В пути между ФФ",["TRANSFER"]),("FBO в пути",["FBO_SEND"]),("FBS к клиенту",["FBS_SHIP"])] %}<div class="col-md-4"><div class="card p-3"><div class="muted small">{{label}}</div><h4>{{transit|selectattr("type","in",types)|sum(attribute="qty")}}</h4></div></div>{% endfor %}</div>
 <div class="card p-3 mt-3">
 <strong class="mb-2">Товары в пути</strong>
@@ -50,7 +50,7 @@
 <thead><tr><th>Операция</th><th>SKU</th><th>Количество</th><th>Откуда</th><th>Куда</th><th>Статус</th></tr></thead>
 <tbody>
 {% for op in transit %}
-{% set p = products|selectattr("id","equalto",op.product_id)|first %}
+{% set p = products_by_id.get(op.product_id) %}
 <tr>
 <td>#{{op.id}}</td><td>{{p.sku}} — {{p.name}}</td><td>{{op.qty}}</td>
 <td>{{names.get(op.source_warehouse_id, "—")}}</td>
