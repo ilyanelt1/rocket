@@ -117,6 +117,7 @@ def _run(
         return result
     except Exception:
         db.rollback()
+        db.info.pop("_new_operation_ids", None)
         # A concurrent request with the same key may have committed while this
         # transaction waited for its row lock or hit the unique constraint.
         if key:
