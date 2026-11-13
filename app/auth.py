@@ -30,7 +30,9 @@ def verify_password(password: str, encoded: str) -> bool:
             "sha256", password.encode(), bytes.fromhex(salt_hex), int(iterations)
         )
         return hmac.compare_digest(actual, bytes.fromhex(digest_hex))
-    except (ValueError, TypeError):
+    except ValueError:
+        return False
+    except TypeError:
         return False
 
 
