@@ -41,9 +41,9 @@ def verify_password(password: str, encoded: str) -> bool:
         return False
 
 
-def verify_dummy_password(password: str) -> None:
+def verify_dummy_password(password: str) -> bool:
     """Perform the password-hash work for unknown or inactive accounts."""
-    verify_password(password, _DUMMY_PASSWORD_HASH)
+    return verify_password(password, _DUMMY_PASSWORD_HASH)
 
 
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
