@@ -40,7 +40,7 @@ def postgres_db():
         pool_pre_ping=True,
         connect_args={
             "connect_timeout": 5,
-            "options": f"-csearch_path={schema_name},public",
+            "options": f"-csearch_path={schema_name}",
         },
     )
 
