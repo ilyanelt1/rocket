@@ -99,7 +99,7 @@ def verify(archive: Path) -> None:
         detail = (exc.stderr or b"").decode(errors="replace").lower()
         if (
             "permission denied to create database" not in detail
-            and "createdb" not in detail
+            and "must be superuser or have createdb privilege" not in detail
         ):
             raise
         # Least-privilege production roles may not have CREATEDB. In that case,
