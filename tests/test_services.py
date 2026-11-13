@@ -159,6 +159,46 @@ def test_idempotent_retry_does_not_duplicate_audit_event(db, ids):
     assert len(events) == 1
 
 
+def test_idempotency_rejects_reused_key_with_different_quantity(db, ids):
+    receipt(db, ids["product"], ids["north"], 2, "same-key")
+
+    with pytest.raises(StockError, match="Ключ идемпотентности"):
+        receipt(db, ids["product"], ids["north"], 3, "same-key")
+
+    assert bal(db, ids["product"], ids["north"]).physical_qty == 12
+    assert db.scalar(select(Operation).where(Operation.idempotency_key == "same-key")).qty == 2
+
+
+def test_idempotency_rejects_reused_key_with_different_product(db, ids):
+    receipt(db, ids["product"], ids["north"], 2, "same-key")
+
+    with pytest.raises(StockError, match="Ключ идемпотентности"):
+        receipt(db, ids["other"], ids["north"], 2, "same-key")
+
+    assert bal(db, ids["product"], ids["north"]).physical_qty == 12
+    assert bal(db, ids["other"], ids["north"]).physical_qty == 0
+
+
+def test_idempotency_rejects_reused_key_with_different_warehouse(db, ids):
+    receipt(db, ids["product"], ids["north"], 2, "same-key")
+
+    with pytest.raises(StockError, match="Ключ идемпотентности"):
+        receipt(db, ids["product"], ids["south"], 2, "same-key")
+
+    assert bal(db, ids["product"], ids["north"]).physical_qty == 12
+    assert bal(db, ids["product"], ids["south"]).physical_qty == 6
+
+
+def test_idempotency_rejects_reused_key_for_different_operation_type(db, ids):
+    receipt(db, ids["product"], ids["north"], 2, "same-key")
+
+    with pytest.raises(StockError, match="Ключ идемпотентности"):
+        reserve_fbs(db, ids["product"], ids["north"], 2, "same-key")
+
+    balance = bal(db, ids["product"], ids["north"])
+    assert (balance.physical_qty, balance.reserved_qty) == (12, 0)
+
+
 def test_reconciliation_counts_stock_and_goods_in_transit(db, ids):
     transfer(db, ids["product"], ids["north"], ids["south"], 3)
     result = reconcile(db, ids["product"])
