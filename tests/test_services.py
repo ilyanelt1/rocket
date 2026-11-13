@@ -133,11 +133,19 @@ def test_idempotent_retry_does_not_duplicate_audit_event(db, ids):
     db.commit()
 
     first = receipt(
-        db, ids["product"], ids["north"], 2, "audited-receipt-key",
+        db,
+        ids["product"],
+        ids["north"],
+        2,
+        "audited-receipt-key",
         actor_user_id=user.id,
     )
     second = receipt(
-        db, ids["product"], ids["north"], 2, "audited-receipt-key",
+        db,
+        ids["product"],
+        ids["north"],
+        2,
+        "audited-receipt-key",
         actor_user_id=user.id,
     )
 
