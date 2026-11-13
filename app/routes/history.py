@@ -1,7 +1,9 @@
 import csv
 import io
 from datetime import date, datetime, time, timedelta, timezone
+from typing import Annotated
 
+from pydantic import BeforeValidator
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from sqlalchemy import func, or_, select
@@ -14,6 +16,15 @@ from ..templating import templates
 
 
 router = APIRouter()
+
+
+def _empty_string_to_none(value):
+    if value == "":
+        return None
+    return value
+
+
+OptionalQueryInt = Annotated[int | None, BeforeValidator(_empty_string_to_none)]
 
 
 ALLOWED_OPERATION_TYPES = {
@@ -87,10 +98,10 @@ def _build_filters(
 def operation_history(
     request: Request,
     q: str = "",
-    product_id: int | None = None,
+    product_id: OptionalQueryInt = None,
     operation_type: str = "",
     status: str = "",
-    warehouse_id: int | None = None,
+    warehouse_id: OptionalQueryInt = None,
     date_from: date | None = None,
     date_to: date | None = None,
     page: int = Query(1, ge=1),
@@ -211,10 +222,10 @@ def _csv_value(column_key: str, value):
 @router.get("/history/export")
 def export_operation_history(
     q: str = "",
-    product_id: int | None = None,
+    product_id: OptionalQueryInt = None,
     operation_type: str = "",
     status: str = "",
-    warehouse_id: int | None = None,
+    warehouse_id: OptionalQueryInt = None,
     date_from: date | None = None,
     date_to: date | None = None,
     user: User = Depends(get_current_user),
