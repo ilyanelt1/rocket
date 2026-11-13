@@ -55,6 +55,7 @@ def test_fbs_ship_reduces_physical_and_reserved_and_tracks_customer(db, ids):
     assert (balance.physical_qty, balance.reserved_qty) == (6, 0)
     assert shipment.status == "SHIPPED"
     assert shipment.type == "FBS_SHIP"
+    assert shipment.confirmed_at is not None
 
 
 def test_transfer_and_acceptance(db, ids):
