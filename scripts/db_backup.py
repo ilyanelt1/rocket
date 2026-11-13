@@ -21,7 +21,22 @@ def compose_exec(*args, input_data=None, capture_output=False):
     )
 
 
+def ensure_database_running() -> None:
+    result = subprocess.run(
+        COMPOSE + ["ps", "--status", "running", "--services", "db"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    if "db" not in result.stdout.split():
+        raise RuntimeError(
+            "PostgreSQL container is not running. Start it with 'docker compose up -d db'."
+        )
+
+
 def database_settings():
+    ensure_database_running()
     database = compose_exec("printenv", "POSTGRES_DB", capture_output=True)
     username = compose_exec("printenv", "POSTGRES_USER", capture_output=True)
     return database.stdout.decode().strip(), username.stdout.decode().strip()
@@ -87,6 +102,12 @@ def restore(archive: Path, confirmed: bool) -> None:
         raise ValueError("Restore is destructive; pass --yes to confirm")
     if not archive.is_file() or archive.stat().st_size == 0:
         raise FileNotFoundError(f"Backup archive not found or empty: {archive}")
+    safety_backup = (
+        ROOT
+        / "backups"
+        / f"pre_restore_{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}_{uuid4().hex[:8]}.dump"
+    )
+    backup(safety_backup)
     database, username = database_settings()
     compose_exec(
         "pg_restore",
@@ -101,6 +122,7 @@ def restore(archive: Path, confirmed: bool) -> None:
         database,
         input_data=archive.read_bytes(),
     )
+    print(f"Safety backup created before restore: {safety_backup}")
     print(f"Database restored from: {archive}")
 
 
