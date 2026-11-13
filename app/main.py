@@ -1,8 +1,5 @@
 import os
 from datetime import datetime, timezone
-from typing import Annotated
-from pydantic import BeforeValidator
-
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy import func, select, text
@@ -34,13 +31,15 @@ from .services import (
 )
 
 
-def empty_string_to_none(value):
-    if value == "":
+def parse_optional_form_int(value: str | None, field_name: str) -> int | None:
+    if value is None or not value.strip():
         return None
-    return value
-
-
-OptionalFormInt = Annotated[int | None, BeforeValidator(empty_string_to_none)]
+    try:
+        return int(value)
+    except ValueError:
+        raise HTTPException(
+            422, f"Поле «{field_name}» должно содержать целое число."
+        ) from None
 
 
 def _get_session_secret() -> str:
@@ -554,14 +553,19 @@ def create_operation(
     kind: str = Form(...),
     product_id: int = Form(...),
     qty: int = Form(...),
-    warehouse_id: int | None = Form(None),
-    destination_id: int | None = Form(None),
-    reserve_id: OptionalFormInt = Form(None),
-    operation_id: OptionalFormInt = Form(None),
+    warehouse_id: str | None = Form(None),
+    destination_id: str | None = Form(None),
+    reserve_id: str | None = Form(None),
+    operation_id: str | None = Form(None),
     idempotency_key: str | None = Form(None),
     user: User = Depends(require_roles("admin", "warehouse_manager", "operator")),
     db: Session = Depends(get_db),
 ):
+    warehouse_id = parse_optional_form_int(warehouse_id, "склад")
+    destination_id = parse_optional_form_int(destination_id, "склад получения")
+    reserve_id = parse_optional_form_int(reserve_id, "ID резерва")
+    operation_id = parse_optional_form_int(operation_id, "ID операции в пути")
+
     if kind in {"RECEIPT", "FBS_RESERVE", "FBO_SEND"} and warehouse_id is None:
         raise HTTPException(422, "Для этой операции необходимо выбрать склад.")
     if kind == "TRANSFER" and (warehouse_id is None or destination_id is None):
