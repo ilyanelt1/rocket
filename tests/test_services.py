@@ -258,3 +258,13 @@ def test_reconciliation_counts_fbo_in_transit_then_accepted(db, ids):
     assert accepted["in_transit"] == 0
     assert accepted["fbo_accepted"] == 2
     assert accepted["total"] == 16
+
+def test_empty_idempotency_keys_are_stored_as_null(db, ids):
+    first = receipt(db, ids["product"], ids["north"], 1, "")
+    second = receipt(db, ids["product"], ids["north"], 1, "   ")
+
+    assert first.id != second.id
+    assert first.idempotency_key is None
+    assert second.idempotency_key is None
+    assert bal(db, ids["product"], ids["north"]).physical_qty == 12
+
