@@ -44,7 +44,7 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 docker compose up --build
 ```
 
-После старта приложение доступно по адресу http://localhost:8005. Страница входа: http://localhost:8005/login. Compose сначала дожидается готовности PostgreSQL 16, затем запускает одноразовый сервис `init`: он выполняет `alembic upgrade head`, после чего запускает воспроизводимый seed. Только после успешного завершения `init` запускается `web` с Uvicorn. Seed не перезаписывает уже существующие остатки и операции, поэтому повторный запуск не сбрасывает рабочие данные.
+После старта приложение доступно по адресу http://localhost:8006. Страница входа: http://localhost:8006/login. Compose сначала дожидается готовности PostgreSQL 16, затем запускает одноразовый сервис `init`: он выполняет `alembic upgrade head`, после чего запускает воспроизводимый seed. Только после успешного завершения `init` запускается `web` с Uvicorn. Seed не перезаписывает уже существующие остатки и операции, поэтому повторный запуск не сбрасывает рабочие данные.
 
 ### Миграции базы данных
 
@@ -75,15 +75,15 @@ docker compose -f compose.prod.yml up --build -d --wait
 docker compose -f compose.prod.yml ps
 ```
 
-По умолчанию приложение доступно на `http://127.0.0.1:8005`. Порт привязан только к loopback-интерфейсу хоста, поэтому приложение не публикуется напрямую для других устройств сети. Если порт 8005 занят, выбери другой свободный порт, например:
+По умолчанию приложение доступно на `http://127.0.0.1:8006`. Порт привязан только к loopback-интерфейсу хоста, поэтому приложение не публикуется напрямую для других устройств сети. Если порт 8006 занят, выбери другой свободный порт, например:
 
 ```powershell
-$env:WEB_PORT="8006"
+$env:WEB_PORT="8007"
 docker compose -f compose.prod.yml config
 docker compose -f compose.prod.yml up --build -d --wait
 ```
 
-После этого приложение будет доступно на `http://127.0.0.1:8006`. Переменная действует в текущем окне PowerShell.
+После этого приложение будет доступно на `http://127.0.0.1:8007`. Переменная действует в текущем окне PowerShell.
 
 В production-профиле:
 
@@ -99,8 +99,8 @@ docker compose -f compose.prod.yml up --build -d --wait
 docker compose -f compose.prod.yml ps
 docker compose -f compose.prod.yml logs --tail=100 web
 docker compose -f compose.prod.yml logs --tail=100 init
-Invoke-RestMethod http://127.0.0.1:8005/health/live
-Invoke-RestMethod http://127.0.0.1:8005/health/ready
+Invoke-RestMethod http://127.0.0.1:8006/health/live
+Invoke-RestMethod http://127.0.0.1:8006/health/ready
 ```
 
 Если задан `WEB_PORT`, подставь его значение в URL health checks. Остановка без удаления данных:
@@ -137,7 +137,7 @@ Seed выполняется одноразовым сервисом `init`. По
 
 Unit-тесты используют SQLite in-memory для быстрого изолированного прогона бизнес-правил. SQLite не реализует PostgreSQL `SELECT FOR UPDATE`, поэтому эти тесты не подтверждают конкурентное поведение блокировок.
 
-Отдельный `tests/test_postgres_integration.py` проверяет повторное и конкурентное подтверждение перемещения непосредственно на PostgreSQL. В CI для него поднимается отдельный PostgreSQL 16 service и передаётся `TEST_DATABASE_URL`. Локально этот набор можно запустить, указав `TEST_DATABASE_URL` на отдельную тестовую БД; тесты очищают и пересоздают таблицы в этой БД, поэтому не используй URL рабочей базы.
+Отдельный `tests/test_postgres_integration.py` проверяет повторное и конкурентное подтверждение перемещения непосредственно на PostgreSQL. В CI для него поднимается отдельный PostgreSQL 16 service и передаётся `TEST_DATABASE_URL`. Локально этот набор можно запустить, указав `TEST_DATABASE_URL` на отдельную тестовую БД. Тесты создают в ней отдельную временную схему, создают таблицы внутри неё и удаляют схему после завершения; не используй URL рабочей базы.
 
 Запуск локально:
 
@@ -149,7 +149,7 @@ python -m pytest -q
 
 Docker Compose smoke test не запускается в pre-commit: он выполняется отдельным CI job, чтобы локальный коммит не требовал Docker и полной пересборки приложения. При необходимости локально запусти `python scripts/docker_smoke.py`. Скрипт использует отдельный Compose project `checkstock-precommit`, порт 18005 и отдельный volume; основной стек и его данные не затрагиваются.
 
-Для проверки транзакций и блокировок требуется отдельный прогон на PostgreSQL 16 и отдельная тестовая база. Текущая фикстура unit-тестов намеренно создаёт SQLite engine независимо от `DATABASE_URL`; простая подмена переменной окружения не переключает эти тесты на PostgreSQL. PostgreSQL integration suite также проверяет конкурентное списание с одного ФФ и повторный запрос с одинаковым idempotency key.
+Для проверки транзакций и блокировок требуется отдельный прогон на PostgreSQL 16 и отдельная тестовая база. Фикстура интеграционных тестов требует права на создание и удаление схем. Текущая фикстура unit-тестов намеренно создаёт SQLite engine независимо от `DATABASE_URL`; простая подмена переменной окружения не переключает эти тесты на PostgreSQL. PostgreSQL integration suite также проверяет конкурентное списание с одного ФФ и повторный запрос с одинаковым idempotency key.
 
 ## CI — GitHub Actions
 
@@ -252,8 +252,8 @@ python scripts/db_backup.py verify backups/<имя-файла>.dump
 
 ```powershell
 docker compose up --build -d --wait
-Invoke-RestMethod http://localhost:8005/health/live
-Invoke-RestMethod http://localhost:8005/health/ready
+Invoke-RestMethod http://localhost:8006/health/live
+Invoke-RestMethod http://localhost:8006/health/ready
 python scripts/db_backup.py backup
 python scripts/db_backup.py verify <путь-к-архиву>
 docker compose down
