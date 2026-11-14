@@ -34,6 +34,8 @@ def create_operation(
     user: User = Depends(require_roles("admin", "warehouse_manager", "operator")),
     db: Session = Depends(get_db),
 ):
+    idempotency_key = (idempotency_key or "").strip() or None
+
     warehouse_id = parse_optional_form_int(warehouse_id, "склад")
     destination_id = parse_optional_form_int(destination_id, "склад получения")
     reserve_id = parse_optional_form_int(reserve_id, "ID резерва")

@@ -101,7 +101,7 @@ def _record(
         qty=qty,
         source_warehouse_id=source,
         destination_warehouse_id=destination,
-        idempotency_key=key,
+        idempotency_key=(key or "").strip() or None,
         note=note,
         related_operation_id=related,
         confirmed_at=(
@@ -121,6 +121,7 @@ def _run(
     actor_user_id: int | None = None,
     expected: dict | None = None,
 ):
+    key = (key or "").strip() or None
     expected = expected or {}
     try:
         # A key may only replay the exact same operation intent.
